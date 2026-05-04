@@ -117,4 +117,6 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Run cargo-audit
-        run: cargo audit --ignore RUSTSEC-2024-0436
+        # Advisory exceptions live in `audit.toml` (single source of
+        # truth, kept in sync with `deny.toml`).
+        run: cargo audit

@@ -1,0 +1,13 @@
+# Single source of truth for cargo-audit advisory exceptions.
+# Keep aligned with deny.toml.
+#
+# `cargo audit` reads this when invoked from the project root.
+
+[advisories]
+ignore = [
+    # `paste` (RUSTSEC-2024-0436) — archived/unmaintained, no CVE,
+    # no runtime impact (proc-macro, compile-time only). Pulled in
+    # transitively by `parquet 54.x`. Revisit when `parquet`
+    # upstream migrates to `pastey` or replaces the dependency.
+    "RUSTSEC-2024-0436",
+]

@@ -1,0 +1,57 @@
+# Dependabot — automated dep version bump PRs.
+# Weekly cadence. PRs grouped to keep churn manageable.
+
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      # One PR per ecosystem area to reduce review fatigue.
+      tokio-stack:
+        patterns:
+          - "tokio*"
+          - "tower*"
+      hyper-stack:
+        patterns:
+          - "hyper*"
+          - "reqwest*"
+          - "rustls*"
+      parquet-arrow:
+        patterns:
+          - "parquet*"
+          - "arrow*"
+      lints-tools:
+        patterns:
+          - "clippy*"
+          - "rustfmt*"
+      dev-deps:
+        dependency-type: development
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    labels:
+      - "dependencies"
+    reviewers:
+      - userFRM
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(actions)"
+    labels:
+      - "dependencies"
+      - "ci"
+    reviewers:
+      - userFRM
