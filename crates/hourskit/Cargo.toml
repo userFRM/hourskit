@@ -1,0 +1,35 @@
+[package]
+name = "hourskit"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "US exchange trading-hours service for Rust — Cboe options, NASDAQ + NYSE Arca + Cboe BZX/EDGX/BYX/EDGA equities, microsecond-native"
+keywords = ["cboe", "nasdaq", "options", "market-hours", "parquet"]
+categories = ["finance", "api-bindings"]
+readme = "../../README.md"
+
+[dependencies]
+thiserror.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+reqwest.workspace = true
+arrow.workspace = true
+parquet.workspace = true
+bytes.workspace = true
+sha2.workspace = true
+directories = "5"
+tempfile = "3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
+tempfile = "3"
+wiremock = "0.6"
+proptest = "1.5"
+
+[lints]
+workspace = true

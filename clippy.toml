@@ -1,0 +1,15 @@
+# hourskit lint settings.
+#
+# Cognitive-complexity threshold lifted slightly because the fetcher
+# state machine intentionally branches across retry, CDN mirror, stale
+# cache fallback, and the staleness-ceiling override inside one function.
+cognitive-complexity-threshold = 30
+too-many-arguments-threshold = 8
+type-complexity-threshold = 250
+
+# Allow `.unwrap()` / `.expect()` / `panic!` inside `#[cfg(test)]` and
+# `tests/`. Production code is held to the deny-level rule in `Cargo.toml`.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true

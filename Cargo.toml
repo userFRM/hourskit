@@ -1,0 +1,98 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/hourskit",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["userFRM"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/userFRM/hourskit"
+documentation = "https://docs.rs/hourskit"
+rust-version = "1.81"
+
+[workspace.dependencies]
+# ── Core ──
+anyhow = "1.0"
+thiserror = "2.0"
+
+# ── Async runtime ──
+tokio = { version = "1", features = ["full"] }
+
+# ── Serialization ──
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# ── Logging ──
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# ── Async utilities ──
+async-trait = "0.1"
+
+# ── HTTP ──
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+bytes = "1"
+futures = "0.3"
+
+# ── Crypto ──
+sha2 = "0.10"
+
+# ── Parquet / Arrow ──
+arrow = { version = "54", default-features = false, features = ["csv"] }
+parquet = { version = "54", default-features = false, features = ["snap", "zstd", "arrow"] }
+
+# ── CLI ──
+clap = { version = "4", features = ["derive", "env"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+strip = true
+
+[profile.dev]
+opt-level = 0
+
+# ── Workspace-wide lint configuration ──
+#
+# Library crates inherit these via `[lints]\nworkspace = true`. The CLI binary
+# opts out of `clippy::print_stdout` / `clippy::print_stderr` at the source
+# level since CLI output is its job.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+unreachable_pub = "deny"
+unused_must_use = "deny"
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+print_stdout = "warn"
+print_stderr = "warn"
+# Internal noise — does not block builds.
+multiple_crate_versions = "allow"
+module_name_repetitions = "allow"
+# `redundant_pub_crate` conflicts with `unreachable_pub` (deny). The latter
+# rule already requires `pub(crate)` for crate-internal items inside private
+# modules, so the pedantic warning here is unactionable.
+redundant_pub_crate = "allow"
+# Allowed because the seed-data example is fixed-list initialisation; the
+# pedantic warning fires on every line of a `[&str]` literal.
+must_use_candidate = "allow"
+# Brand names (ETag, ThetaData, XDG, OPRA, jsDelivr, NASDAQ, ...) trigger this
+# even when used in plain prose. The standard idiom is to backtick types and
+# functions, not English-language vendor names.
+doc_markdown = "allow"
