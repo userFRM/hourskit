@@ -338,8 +338,7 @@ fn walk_parquets(
         };
         let logical = path
             .strip_prefix(root)
-            .map(|p| p.to_string_lossy().replace('\\', "/"))
-            .unwrap_or(name);
+            .map_or(name, |p| p.to_string_lossy().replace('\\', "/"));
         let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
