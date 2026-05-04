@@ -41,7 +41,7 @@
 //!    EOM / Monthly / Quarterly / QIX series. The kit encodes (a)
 //!    per-root in [`LAST_TRADING_DAY_EARLY_CLOSE_ROOTS`] and (b) at the
 //!    class level via [`hourskit::TradingClass::class_level_last_trading_day_close_us`].
-//!    <https://www.cboe.com/us/options/membership/rule_book/c1/>
+//!    <https://cdn.cboe.com/resources/regulation/rule_book/C1_Exchange_Rule_Book.pdf>
 //! 2. **Firstrade Help Center — "Options that trade until 4:15 PM Eastern
 //!    Time (UTC-5)"** (broker-curated, 79 symbols, last updated
 //!    2026-02-10). Also the source for the verbatim last-trading-day

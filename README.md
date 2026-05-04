@@ -102,7 +102,7 @@ Install: `cargo install --path cli` from the repo root.
 
 ## Sources
 
-1. CBOE C1 Rule Book — Rule 5.1(b)(1), 5.1(b)(2)(C). <https://www.cboe.com/us/options/membership/rule_book/c1/>
+1. CBOE C1 Rule Book — Rule 5.1(b)(1), 5.1(b)(2)(C). <https://cdn.cboe.com/resources/regulation/rule_book/C1_Exchange_Rule_Book.pdf>
 2. OPRA — "Revised OPRA GTH Hours of Operation", effective 2024-08-26. <https://cdn.opraplan.com/documents/notices/Revised_OPRA_GTH_Hours_of_Operation_Eff_082624.pdf>
 3. Firstrade — "Options that trade until 4:15 PM Eastern Time". <https://help.firstrade.info/en/articles/9264922-options-that-trade-until-4-15-pm-eastern-time-utc-5>
 4. NASDAQ Trader — Options Market Hours. <https://www.nasdaqtrader.com/Trader.aspx?id=optionshours>
