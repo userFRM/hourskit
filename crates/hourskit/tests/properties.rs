@@ -4,6 +4,7 @@
 //! the (small, integer-bounded) domain. proptest's default 256 cases per
 //! invariant is sufficient given the scale.
 
+#![cfg(feature = "parquet-loader")]
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::missing_panics_doc)]
 
 use hourskit::session::{SessionInfo, TimeUnit, TimeWindow, TradingClass};

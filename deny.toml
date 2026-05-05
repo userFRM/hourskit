@@ -13,9 +13,10 @@ db-path = "$CARGO_HOME/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "warn"
 ignore = [
-    # `paste` is archived but still pulled in by `parquet 54.x`. No safe
-    # upgrade exists today; revisit when `parquet` migrates to `pastey` or
-    # drops the dependency.
+    # `paste` is archived but still pulled in by `parquet 54.x`, which is
+    # gated behind the default-on `parquet-loader` feature. Consumers can
+    # disable the feature to drop the transitive dependency; revisit when
+    # upstream `parquet` migrates to `pastey` or drops `paste` entirely.
     "RUSTSEC-2024-0436",
 ]
 

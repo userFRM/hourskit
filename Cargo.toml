@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["userFRM"]
 license = "MIT OR Apache-2.0"
@@ -45,6 +45,13 @@ sha2 = "0.10"
 # ── Parquet / Arrow ──
 arrow = { version = "54", default-features = false, features = ["csv"] }
 parquet = { version = "54", default-features = false, features = ["snap", "zstd", "arrow"] }
+
+# ── Macros ──
+# Maintained drop-in for the archived `paste` crate (RUSTSEC-2024-0436).
+# Held at the workspace level so any first-party macro work reaches the
+# maintained fork. The transitive `paste` pulled in by `parquet` is gated
+# behind the `parquet-loader` feature in the lib crate.
+pastey = "0.2.2"
 
 # ── CLI ──
 clap = { version = "4", features = ["derive", "env"] }

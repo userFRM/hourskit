@@ -2,6 +2,7 @@
 //! plus on-disk schema-mismatch, checksum-mismatch, atomic-write,
 //! ETag-revalidation, and 24-hour staleness-ceiling behaviour.
 
+#![cfg(feature = "parquet-loader")]
 #![allow(clippy::similar_names, clippy::expect_used, clippy::unwrap_used)]
 
 use std::path::PathBuf;

@@ -6,6 +6,8 @@
 //! - `Hourskit` implements `Default`.
 //! - The error enum is `Send + Sync + 'static` so it can flow across tasks.
 
+#![cfg(feature = "parquet-loader")]
+
 use std::fmt::Debug;
 
 use hourskit::{

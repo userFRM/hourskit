@@ -3,6 +3,8 @@
 //! Source: Cboe extended-trading-hours notice + the OPRA "Revised OPRA GTH
 //! Hours of Operation" PDF (effective trade date 2024-08-26).
 
+#![cfg(feature = "parquet-loader")]
+
 use hourskit::sources::bundled;
 use hourskit::TradingClass;
 

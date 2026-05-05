@@ -1,6 +1,8 @@
 //! Tests for the Nasdaq Stock Market Extended Session — the 21:00 ET to
 //! 04:00 ET overnight Global Trading Hours program announced for 2026.
 
+#![cfg(feature = "parquet-loader")]
+
 use hourskit::sources::bundled;
 use hourskit::TradingClass;
 

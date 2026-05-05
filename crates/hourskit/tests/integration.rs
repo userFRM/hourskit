@@ -5,6 +5,8 @@
 //! 1. The first call hits the network and writes the cache.
 //! 2. The second call is served from cache.
 
+#![cfg(feature = "parquet-loader")]
+
 use std::path::PathBuf;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};

@@ -6,10 +6,21 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "US exchange trading-hours service for Rust — Cboe options, NASDAQ + NYSE Arca + Cboe BZX/EDGX/BYX/EDGA equities, microsecond-native"
+description = "US exchange trading-hours service for Rust — Cboe options, NASDAQ + NYSE Arca + Cboe BZX/EDGX/BYX/EDGA equities, microsecond-native, optional bundled-parquet loader"
 keywords = ["cboe", "nasdaq", "options", "market-hours", "parquet"]
 categories = ["finance", "api-bindings"]
 readme = "../../README.md"
+
+[features]
+default = ["parquet-loader"]
+# Read the bundled `sessions.parquet` (local + fetched) and expose the
+# `Hourskit` client. Disable to drop the `parquet`, `arrow`, `bytes`, and
+# `tempfile` dependencies — and the transitive `paste 1.0.15` archived crate
+# (RUSTSEC-2024-0436). With the feature off, `SessionInfo`, `TimeWindow`,
+# `TradingClass`, and the rest of the type surface remain available so
+# callers can construct session windows from explicit data instead of
+# reading the bundled parquet.
+parquet-loader = ["dep:arrow", "dep:parquet", "dep:tempfile", "dep:bytes"]
 
 [dependencies]
 thiserror.workspace = true
@@ -18,18 +29,22 @@ serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 reqwest.workspace = true
-arrow.workspace = true
-parquet.workspace = true
-bytes.workspace = true
+arrow = { workspace = true, optional = true }
+parquet = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
 sha2.workspace = true
 directories = "5"
-tempfile = "3"
+tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
 tempfile = "3"
 wiremock = "0.6"
 proptest = "1.5"
+
+[[example]]
+name = "seed_data"
+required-features = ["parquet-loader"]
 
 [lints]
 workspace = true

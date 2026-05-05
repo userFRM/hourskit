@@ -65,10 +65,12 @@ pub enum Error {
     Io(#[from] std::io::Error),
 
     /// Arrow columnar format error (from parquet reading).
+    #[cfg(feature = "parquet-loader")]
     #[error("arrow error: {0}")]
     Arrow(#[from] arrow::error::ArrowError),
 
     /// Native parquet crate error.
+    #[cfg(feature = "parquet-loader")]
     #[error("parquet error: {0}")]
     ParquetNative(#[from] parquet::errors::ParquetError),
 

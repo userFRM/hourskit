@@ -13,6 +13,7 @@
 //! named subset per-root and the open-ended Nonstandard-Expirations
 //! catch-all at the [`TradingClass`] level.
 
+#![cfg(feature = "parquet-loader")]
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::missing_panics_doc)]
 
 use hourskit::session::{SessionInfo, TimeWindow};

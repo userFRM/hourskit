@@ -90,14 +90,17 @@
 #![deny(unused_must_use)]
 #![deny(rustdoc::broken_intra_doc_links)]
 
+#[cfg(feature = "parquet-loader")]
 pub mod client;
 pub mod error;
+#[cfg(feature = "parquet-loader")]
 pub(crate) mod fetcher;
 pub mod session;
 pub mod sources;
 
 // ── Top-level re-exports ──────────────────────────────────────────────────────
 
+#[cfg(feature = "parquet-loader")]
 pub use client::Hourskit;
 pub use error::{Error, HourskitError, Result};
 pub use session::{ParseTimeUnitError, SessionInfo, TimeUnit, TimeWindow, TradingClass};
@@ -107,8 +110,10 @@ pub use session::{ParseTimeUnitError, SessionInfo, TimeUnit, TimeWindow, Trading
 // One-shot use: a process-wide `Hourskit` instance is shared so multiple calls
 // reuse the HTTP client and cache.
 
+#[cfg(feature = "parquet-loader")]
 use std::sync::OnceLock;
 
+#[cfg(feature = "parquet-loader")]
 fn global_client() -> &'static Hourskit {
     static CLIENT: OnceLock<Hourskit> = OnceLock::new();
     CLIENT.get_or_init(Hourskit::new)
@@ -121,6 +126,7 @@ fn global_client() -> &'static Hourskit {
 /// # Errors
 ///
 /// Propagates HTTP / parquet errors from the underlying fetcher.
+#[cfg(feature = "parquet-loader")]
 pub async fn session(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
     global_client().session(root).await
 }
@@ -130,6 +136,7 @@ pub async fn session(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
 /// # Errors
 ///
 /// Propagates HTTP / parquet errors from the underlying fetcher.
+#[cfg(feature = "parquet-loader")]
 pub fn session_blocking(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
     global_client().session_blocking(root)
 }

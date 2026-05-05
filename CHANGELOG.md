@@ -7,6 +7,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-04
+
+### Added
+
+- `parquet-loader` Cargo feature (enabled by default) gates the bundled-parquet
+  reader, the `Hourskit` client, the ETag-aware fetcher, the
+  `sources::bundled` / `sources::parquet_io` modules, and the
+  `session()` / `session_blocking()` free functions. Disable to drop
+  the `parquet`, `arrow`, `bytes`, and `tempfile` dependencies — and
+  the transitive `paste 1.0.15` (RUSTSEC-2024-0436). With the feature
+  off, `SessionInfo`, `TimeWindow`, `TradingClass`, and `TimeUnit`
+  remain available so callers can construct session windows from
+  explicit data instead of reading the bundled parquet.
+- `pastey 0.2.2` workspace dependency (declaration only, not yet consumed).
+  Maintained drop-in for the archived `paste` macro crate; held at the
+  workspace level so any first-party macro work reaches the maintained fork.
+- `hourskit-cli` pins `features = ["parquet-loader"]` on its dependency on
+  `hourskit` so the CLI compiles regardless of the consumer workspace's
+  default-feature configuration.
+- `[[example]] required-features = ["parquet-loader"]` on `seed_data` so
+  the example excludes itself from `--no-default-features` builds.
+
+### Changed
+
+- `hourskit::Error::Arrow` and `hourskit::Error::ParquetNative` are now
+  gated behind the `parquet-loader` feature. Pattern-match call-sites that
+  must compile across feature configurations should pin the feature on.
+- `audit.toml` and `deny.toml` rationale updated to reference the new
+  feature gate.
+
 ## [0.1.0] - 2026-05-03
 
 Initial pre-release. Not yet published to crates.io.

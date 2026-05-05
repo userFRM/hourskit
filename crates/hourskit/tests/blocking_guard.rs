@@ -5,6 +5,7 @@
 //! the same runtime would deadlock. The kit returns
 //! `Error::BlockingFromCurrentThreadRuntime` instead.
 
+#![cfg(feature = "parquet-loader")]
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use hourskit::{Error, Hourskit};

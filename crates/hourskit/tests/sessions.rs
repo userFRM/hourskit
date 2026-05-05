@@ -3,6 +3,8 @@
 //! These tests exercise the bundled-parquet reader against the seed data
 //! shipped in `data/sessions.parquet`. They never touch the network.
 
+#![cfg(feature = "parquet-loader")]
+
 use hourskit::sources::bundled;
 use hourskit::TradingClass;
 
