@@ -103,7 +103,10 @@ pub mod sources;
 #[cfg(feature = "parquet-loader")]
 pub use client::Hourskit;
 pub use error::{Error, HourskitError, Result};
-pub use session::{ParseTimeUnitError, SessionInfo, TimeUnit, TimeWindow, TradingClass};
+pub use session::{
+    is_third_friday, ParseTimeUnitError, SessionInfo, Settlement, TimeUnit, TimeWindow,
+    TradingClass,
+};
 
 // ── Free-function shortcut ────────────────────────────────────────────────────
 //

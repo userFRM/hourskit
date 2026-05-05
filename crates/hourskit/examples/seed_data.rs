@@ -86,7 +86,7 @@
 
 use std::path::PathBuf;
 
-use hourskit::session::{SessionInfo, TimeWindow, TradingClass};
+use hourskit::session::{SessionInfo, Settlement, TimeWindow, TradingClass};
 use hourskit::sources::parquet_io::write_sessions;
 
 fn main() -> hourskit::Result<()> {
@@ -315,6 +315,27 @@ const LAST_TRADING_DAY_EARLY_CLOSE_ROOTS: &[&str] = &[
 /// 16:00 ET expressed in microseconds-of-day.
 const LAST_TRADING_DAY_CLOSE_US: i64 = 57_600_000_000;
 
+/// 09:30 ET expressed in microseconds-of-day — the AM SET print time
+/// for SPX standard third-Friday expirations.
+const AM_SET_PRINT_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
+
+/// Roster of roots whose **standard third-Friday-of-the-month**
+/// expirations are AM-settled per CBOE methodology. The settlement
+/// rule is encoded on the `SessionInfo` row as
+/// [`Settlement::AmOpen { open_us_of_day: AM_SET_PRINT_US }`]; the
+/// per-expiration classifier in
+/// [`hourskit::SessionInfo::settlement_cutoff_us`] then returns the
+/// AM print time only on third-Friday expirations and falls back to
+/// the PM cutoff on every other expiration of the same root
+/// (weeklies, EOM, mid-week, etc.).
+///
+/// Today the roster contains SPX only — the original CBOE VIX
+/// constituent. XSP, NDX, RUT and other AM-settled cash-settled index
+/// roots are tracked under a separate scope (see hourskit issue #8
+/// follow-ups) so this PR ships the bit-exact rule the published VIX
+/// methodology calls for and nothing more.
+const AM_SET_THIRD_FRIDAY_ROOTS: &[&str] = &["SPX"];
+
 fn extended_trading_options() -> Vec<SessionInfo> {
     let regular = TimeWindow::from_clock_et(9, 30, 16, 15);
     let curb = TimeWindow::from_clock_et(16, 15, 17, 0);
@@ -328,6 +349,13 @@ fn extended_trading_options() -> Vec<SessionInfo> {
                 Some(LAST_TRADING_DAY_CLOSE_US)
             } else {
                 None
+            };
+            let settlement = if AM_SET_THIRD_FRIDAY_ROOTS.contains(r) {
+                Settlement::AmOpen {
+                    open_us_of_day: AM_SET_PRINT_US,
+                }
+            } else {
+                Settlement::Pm
             };
             SessionInfo {
                 root: (*r).to_string(),
@@ -343,6 +371,7 @@ fn extended_trading_options() -> Vec<SessionInfo> {
                 gth: if class_is_c1 { Some(gth) } else { None },
                 gth_overnight: class_is_c1,
                 last_trading_day_close_us,
+                settlement,
             }
         })
         .collect();
@@ -352,7 +381,9 @@ fn extended_trading_options() -> Vec<SessionInfo> {
     // SPXPM, SPEQF, SPEQX, XSP (PM Expiration)). Seed them as
     // OptionsCboeC1 with the same Curb + GTH treatment their underlier
     // carries, so callers querying any of the named early-close roots get
-    // a row directly.
+    // a row directly. Every name in this carry-over set is PM-settled
+    // (SPXW weeklies, SPXPM, SPEQF, SPEQX, "XSP (PM Expiration)" all
+    // explicitly PM by rule); none qualify for AM SET treatment.
     for &root in LAST_TRADING_DAY_EARLY_CLOSE_ROOTS {
         if EXTENDED_TRADING_ROSTER.contains(&root) {
             continue;
@@ -367,6 +398,7 @@ fn extended_trading_options() -> Vec<SessionInfo> {
             gth: Some(gth),
             gth_overnight: true,
             last_trading_day_close_us: Some(LAST_TRADING_DAY_CLOSE_US),
+            settlement: Settlement::Pm,
         });
     }
     rows
@@ -405,6 +437,7 @@ fn equity_nasdaq() -> Vec<SessionInfo> {
             gth: Some(gth),
             gth_overnight: true,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         })
         .collect()
 }
@@ -434,6 +467,7 @@ fn equity_nyse_arca() -> Vec<SessionInfo> {
             gth: None,
             gth_overnight: false,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         })
         .collect()
 }
@@ -463,6 +497,7 @@ fn equity_cboe_bzx_edgx() -> Vec<SessionInfo> {
             gth: None,
             gth_overnight: false,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         })
         .collect()
 }
@@ -487,6 +522,7 @@ fn equity_cboe_byx_edga() -> Vec<SessionInfo> {
             gth: None,
             gth_overnight: false,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         })
         .collect()
 }
