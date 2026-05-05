@@ -33,9 +33,8 @@
 //! ```
 //!
 //! `settlement_am_open_us` encodes the AM SET print microsecond-of-day
-//! for [`Settlement::AmOpen`][crate::Settlement::AmOpen] rows
-//! (currently the SPX root family at 09:30 ET); NULL maps to
-//! [`Settlement::Pm`][crate::Settlement::Pm].
+//! for [`Settlement::AmOpen`] rows (currently the SPX root family at
+//! 09:30 ET); NULL maps to [`Settlement::Pm`].
 //!
 //! Compression: ZSTD level 3. Row group size: 10 000 rows.
 
