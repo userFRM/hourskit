@@ -180,6 +180,22 @@ fn print_session(info: &SessionInfo, format: OutputFormat, unit: TimeUnit) {
                 ),
                 None => println!("{:<22} -", "last_trading_day:"),
             }
+            match info.settlement {
+                hourskit::Settlement::Pm => {
+                    println!("{:<22} pm", "settlement:");
+                }
+                hourskit::Settlement::AmOpen { open_us_of_day } => {
+                    println!(
+                        "{:<22} am-open @ {} ({})",
+                        "settlement:",
+                        convert_us(open_us_of_day, unit),
+                        unit
+                    );
+                }
+                // Forward-compat: future Settlement variants render as
+                // "unknown" until the CLI is taught about them.
+                _ => println!("{:<22} unknown", "settlement:"),
+            }
             println!(
                 "{:<22} {} ({})",
                 "regular_open:",
@@ -194,6 +210,17 @@ fn print_session(info: &SessionInfo, format: OutputFormat, unit: TimeUnit) {
             );
         }
         OutputFormat::Json => {
+            let settlement_json = match info.settlement {
+                hourskit::Settlement::Pm => serde_json::json!({"kind": "pm"}),
+                hourskit::Settlement::AmOpen { open_us_of_day } => serde_json::json!({
+                    "kind": "am_open",
+                    "open": convert_us(open_us_of_day, unit),
+                }),
+                // Forward-compat: future Settlement variants serialise
+                // as a typed "unknown" JSON node so callers can detect
+                // the gap without crashing.
+                _ => serde_json::json!({"kind": "unknown"}),
+            };
             let value = serde_json::json!({
                 "root": info.root,
                 "trading_class": info.trading_class.as_wire(),
@@ -207,6 +234,7 @@ fn print_session(info: &SessionInfo, format: OutputFormat, unit: TimeUnit) {
                 "last_trading_day_close": info
                     .last_trading_day_close_us
                     .map(|us| convert_us(us, unit)),
+                "settlement": settlement_json,
             });
             match serde_json::to_string_pretty(&value) {
                 Ok(s) => println!("{s}"),

@@ -7,6 +7,44 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-05
+
+### Added
+
+- `Settlement` enum (`Pm`, `AmOpen { open_us_of_day: i64 }`) describing the
+  per-(root, expiration) settlement convention for cash-settled index option
+  contracts. `#[non_exhaustive]` so future cash-settled product families can
+  add variants without breaking downstream `match _ => {}` arms.
+- `SessionInfo::settlement: Settlement` field. Default `Settlement::Pm` on
+  every shipped row; populated as `Settlement::AmOpen { 09:30 ET }` for the
+  SPX root only — the original CBOE VIX constituent whose standard
+  third-Friday-of-the-month expirations follow the AM SET print.
+- `SessionInfo::settlement_cutoff_us(expiration_date) -> i64` resolves the
+  microsecond-of-day where variance-contribution accounting must terminate
+  for an option contract that expires on `expiration_date`. AM-settled rows
+  return the embedded `open_us_of_day` on third-Friday expirations and fall
+  back to `effective_close_us(expiration_date, expiration_date)` on every
+  other expiration; PM-settled rows always return `effective_close_us`.
+  Downstream volatility analytics should call this in place of a hardcoded
+  16:00 ET cutoff so SPX standard third-Friday rolls compute time-to-expiry
+  off the AM SET print rather than the option-trading session close.
+- `is_third_friday(yyyymmdd: i32) -> bool` free function — the canonical
+  SPX-standard-expiration classifier. Implemented via Zeller's congruence
+  for `const fn` evaluability.
+- `settlement_am_open_us: Int64` (nullable) column on the bundled
+  `data/sessions.parquet` — the parquet-side encoding of
+  `Settlement::AmOpen`. NULL maps to `Settlement::Pm`.
+
+### Changed
+
+- `data/sessions.parquet` schema gains the `settlement_am_open_us` column;
+  consumers that pin a specific schema string will see a one-shot
+  `SchemaMismatch` after upgrade until they regenerate / refetch.
+  Manifest digest bumped accordingly.
+- The CLI `hourskit-cli session --root <ROOT>` text + JSON output now
+  surfaces `settlement: pm | am-open @ <us-of-day>` so operators can
+  inspect the rule from a one-shot lookup.
+
 ## [0.2.0] - 2026-05-04
 
 ### Added

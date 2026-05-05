@@ -16,7 +16,7 @@
 //! # Example
 //!
 //! ```
-//! use hourskit::{SessionInfo, TimeUnit, TimeWindow, TradingClass};
+//! use hourskit::{SessionInfo, Settlement, TimeUnit, TimeWindow, TradingClass};
 //!
 //! // Construct directly when bypassing the bundled / fetched data plane.
 //! let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
@@ -30,6 +30,7 @@
 //!     gth: Some(TimeWindow::from_clock_et(21, 0, 4, 0)),
 //!     gth_overnight: true,
 //!     last_trading_day_close_us: None,
+//!     settlement: Settlement::Pm,
 //! };
 //! // The regular session is 6h30m long; the duration accessor honours `TimeUnit`.
 //! assert_eq!(info.regular.duration_secs(), 6 * 3_600 + 30 * 60);
@@ -571,6 +572,128 @@ impl std::fmt::Display for TimeWindow {
 // SessionInfo
 // ---------------------------------------------------------------------------
 
+/// Settlement convention for cash-settled index option expirations.
+///
+/// Determines where variance-contribution accounting must terminate on
+/// the expiration day. For PM-settled contracts the cutoff is the
+/// option-trading session close ([`SessionInfo::effective_close_us`]
+/// — typically 16:00 ET on equity options or 16:15 ET on Cboe C1
+/// index options, modulated by the per-root last-trading-day rule on
+/// CBOE Rule 5.1(b)(2)(C) names). For AM-settled contracts the cutoff
+/// is the cash-equity open print time, typically 09:30 ET, embedded
+/// in the [`AmOpen`][Self::AmOpen] variant.
+///
+/// The convention is per-(root, expiration). On `SessionInfo` the
+/// stored value describes the contract family rule:
+/// [`Pm`][Self::Pm] always returns the PM cutoff, while
+/// [`AmOpen`][Self::AmOpen] returns the embedded AM open time on
+/// expirations that match the SPX-standard third-Friday rule (third
+/// Friday of the month) and falls back to the PM cutoff on every
+/// other expiration. The classifier lives in
+/// [`SessionInfo::settlement_cutoff_us`].
+///
+/// `#[non_exhaustive]` because future cash-settled product families
+/// may carry their own conventions (e.g. weekly AM expirations with
+/// a different open-print time).
+///
+/// # Example
+///
+/// ```
+/// use hourskit::Settlement;
+/// // 09:30 ET expressed in microseconds-of-day.
+/// const NINE_THIRTY_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
+/// let am = Settlement::AmOpen { open_us_of_day: NINE_THIRTY_US };
+/// let pm = Settlement::Pm;
+/// assert_ne!(am, pm);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum Settlement {
+    /// PM settlement — variance contribution terminates at the
+    /// option-trading session close. Default for every supported
+    /// product, including SPXW weeklies, SPX EOM expirations, NDX
+    /// (PM), and every equity option.
+    Pm,
+    /// AM settlement — variance contribution terminates at
+    /// `open_us_of_day` microseconds-of-day (ET) on expirations that
+    /// match the SPX-standard third-Friday rule. Currently
+    /// populated only for the `SPX` root family at 09:30 ET; other
+    /// expirations on the same row fall back to PM via
+    /// [`SessionInfo::settlement_cutoff_us`].
+    AmOpen {
+        /// AM SET print time, microseconds-of-day (ET). For SPX
+        /// standard third-Friday options this is 09:30 ET
+        /// (`34_200_000_000`).
+        open_us_of_day: i64,
+    },
+}
+
+/// `true` when `yyyymmdd` is the third Friday of its month — the
+/// canonical SPX standard expiration date that triggers the
+/// AM SET settlement convention.
+///
+/// Implemented via Sakamoto's day-of-week algorithm; works for any
+/// civil date in the first two millennia.
+///
+/// # Example
+///
+/// ```
+/// use hourskit::is_third_friday;
+/// // 3rd Friday of May 2026 is the 15th.
+/// assert!(is_third_friday(20_260_515));
+/// // 2nd Friday of May 2026 — the 8th.
+/// assert!(!is_third_friday(20_260_508));
+/// // 4th Friday of May 2026 — the 22nd.
+/// assert!(!is_third_friday(20_260_522));
+/// ```
+#[must_use]
+pub const fn is_third_friday(yyyymmdd: i32) -> bool {
+    let d = yyyymmdd % 100;
+    if d < 15 || d > 21 {
+        return false;
+    }
+    day_of_week_yyyymmdd(yyyymmdd) == 5
+}
+
+/// Day-of-week via Zeller's congruence: 0 = Sunday, 1 = Monday, ...,
+/// 6 = Saturday.
+///
+/// `const fn` so [`is_third_friday`] stays evaluable in const
+/// contexts. Returns 7 (a sentinel outside the [0, 6] DOW range) for
+/// any `yyyymmdd` whose month component is outside `1..=12`; callers
+/// must validate `yyyymmdd` shape if they need a guaranteed real DOW.
+///
+/// Zeller's congruence (Gregorian variant) avoids the indexed lookup
+/// table Sakamoto's algorithm uses, sidestepping `as usize` index
+/// arithmetic in a const-context day-of-week computation.
+#[must_use]
+const fn day_of_week_yyyymmdd(yyyymmdd: i32) -> i32 {
+    let year_in = yyyymmdd / 10_000;
+    let month_in = (yyyymmdd / 100) % 100;
+    let day = yyyymmdd % 100;
+    if month_in < 1 || month_in > 12 {
+        return 7;
+    }
+    // Zeller treats Jan/Feb as months 13/14 of the previous year.
+    let (month, year) = if month_in < 3 {
+        (month_in + 12, year_in - 1)
+    } else {
+        (month_in, year_in)
+    };
+    let year_of_century = year.rem_euclid(100);
+    let century = year.div_euclid(100);
+    // Zeller's congruence yields 0=Saturday, 1=Sunday, ..., 6=Friday.
+    let zeller_day = (day
+        + (13 * (month + 1)) / 5
+        + year_of_century
+        + year_of_century / 4
+        + century / 4
+        + 5 * century)
+        .rem_euclid(7);
+    // Rotate to 0=Sunday, 1=Monday, ..., 6=Saturday.
+    (zeller_day + 6).rem_euclid(7)
+}
+
 /// Per-symbol slate of trading-session windows.
 ///
 /// `SessionInfo` is the single value type returned by [`crate::Hourskit::session`]
@@ -593,6 +716,7 @@ impl std::fmt::Display for TimeWindow {
 /// | `gth`         | overnight session (Cboe options 20:15-09:25, Nasdaq 21:00-04:00) | OptionsCboeC1, EquityNasdaq |
 /// | `gth_overnight` | true if `gth.open_us` is on the PRIOR trading day; false if same-day evening start | implied by class |
 /// | `last_trading_day_close_us` | per-contract early close on contract expiry day (CBOE Rule 5.1(b)(2)(C)) | NDXP, RUTW, MRUT, SPXW, XSP, OEX, XEO |
+/// | `settlement` | settlement convention rule for the contract family ([`Settlement::Pm`] default; [`Settlement::AmOpen`] for SPX standard third-Friday) | SPX |
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionInfo {
     /// Symbol root (uppercase) e.g. `"SPX"`, `"AAPL"`.
@@ -636,6 +760,18 @@ pub struct SessionInfo {
     /// close for a given `(event_date, exp_date)` pair without branching
     /// on this field directly.
     pub last_trading_day_close_us: Option<i64>,
+    /// Settlement convention for the contract family.
+    ///
+    /// Determines where variance contribution terminates on the
+    /// expiration day. Default [`Settlement::Pm`] applies to every
+    /// product, with the exception of the `SPX` root, whose standard
+    /// third-Friday-of-the-month expirations follow the AM SET print
+    /// at 09:30 ET. Resolve a per-expiration cutoff via
+    /// [`Self::settlement_cutoff_us`] rather than branching on this
+    /// field directly — the resolver carries the third-Friday
+    /// classifier and falls back to PM for SPXW / EOM / weekly
+    /// expirations on the SPX row.
+    pub settlement: Settlement,
 }
 
 impl SessionInfo {
@@ -745,6 +881,67 @@ impl SessionInfo {
             }
         }
         self.regular.close_us()
+    }
+
+    /// Microsecond-of-day at which variance-contribution accounting
+    /// must terminate for an option contract that expires on
+    /// `expiration_date` (`YYYYMMDD`).
+    ///
+    /// # Resolution order
+    ///
+    /// 1. **AM-settled, third-Friday match** — when
+    ///    [`Self::settlement`] is [`Settlement::AmOpen`] and
+    ///    `expiration_date` is the third Friday of its month per
+    ///    [`is_third_friday`], return the embedded `open_us_of_day`.
+    ///    This is the SPX-standard AM SET print branch (09:30 ET on
+    ///    SPX standard third-Friday expirations).
+    /// 2. **PM fallback** — every other case routes through
+    ///    [`Self::effective_close_us`] with
+    ///    `event_date == exp_date == expiration_date`, returning the
+    ///    per-root last-trading-day override or the class-level
+    ///    fallback or the regular close, in that priority order.
+    ///
+    /// This is the function downstream volatility analytics should
+    /// use to derive the time-to-expiry cutoff: it stays correct for
+    /// SPXW (PM), SPX EOM (PM), every NDX / RUT / VIX expiration
+    /// (PM), and SPX standard third-Friday (AM SET) without the
+    /// caller branching on root.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hourskit::{Settlement, SessionInfo, TimeWindow, TradingClass};
+    /// const NINE_THIRTY_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
+    /// let mut spx = SessionInfo {
+    ///     root: "SPX".into(),
+    ///     trading_class: TradingClass::OptionsCboeC1,
+    ///     regular: TimeWindow::from_clock_et(9, 30, 16, 15),
+    ///     pre_market: None,
+    ///     post_market: None,
+    ///     curb: None,
+    ///     gth: None,
+    ///     gth_overnight: false,
+    ///     last_trading_day_close_us: None,
+    ///     settlement: Settlement::AmOpen { open_us_of_day: NINE_THIRTY_US },
+    /// };
+    /// // SPX 3rd-Friday May 2026 (15th) → AM SET 09:30 ET.
+    /// assert_eq!(spx.settlement_cutoff_us(20_260_515), NINE_THIRTY_US);
+    /// // SPX EOM May 2026 (29th) → PM cutoff (class-level 16:00 ET on last
+    /// // trading day, falling out of the OptionsCboeC1 class-level rule).
+    /// assert_eq!(spx.settlement_cutoff_us(20_260_529), 57_600_000_000);
+    /// // Flip to PM convention — every expiration uses the PM cutoff.
+    /// spx.settlement = Settlement::Pm;
+    /// assert_eq!(spx.settlement_cutoff_us(20_260_515), 57_600_000_000);
+    /// ```
+    #[inline]
+    #[must_use]
+    pub const fn settlement_cutoff_us(&self, expiration_date: i32) -> i64 {
+        match self.settlement {
+            Settlement::AmOpen { open_us_of_day } if is_third_friday(expiration_date) => {
+                open_us_of_day
+            }
+            _ => self.effective_close_us(expiration_date, expiration_date),
+        }
     }
 }
 
@@ -906,6 +1103,7 @@ mod tests {
             gth: Some(TimeWindow::new(hm_us(20, 15), hm_us(9, 25))),
             gth_overnight: true,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         };
         // last_trading_us() ignores overnight GTH (open is on prior day).
         assert_eq!(info.last_trading_us(), hm_us(17, 0));
@@ -923,6 +1121,7 @@ mod tests {
             gth: Some(TimeWindow::from_clock_et(21, 0, 4, 0)),
             gth_overnight: true,
             last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
         };
         assert_eq!(info.last_trading_us(), hm_us(20, 0));
     }
@@ -933,5 +1132,135 @@ mod tests {
             TimeWindow::from_clock_et(9, 30, 16, 0).to_string(),
             "09:30-16:00 ET"
         );
+    }
+
+    // ── Settlement convention ──────────────────────────────────────
+
+    /// 09:30 ET expressed in microseconds-of-day.
+    const AM_SET_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
+    /// 16:00 ET — last-trading-day close for cash-settled C1 options.
+    const PM_LAST_TRADING_DAY_US: i64 = 57_600_000_000;
+    /// 16:15 ET — Cboe C1 regular-session close.
+    const C1_REGULAR_CLOSE_US: i64 = 16 * 3_600 * 1_000_000 + 15 * 60 * 1_000_000;
+
+    fn spx_session_with(settlement: Settlement) -> SessionInfo {
+        SessionInfo {
+            root: "SPX".into(),
+            trading_class: TradingClass::OptionsCboeC1,
+            regular: TimeWindow::from_clock_et(9, 30, 16, 15),
+            pre_market: None,
+            post_market: None,
+            curb: None,
+            gth: None,
+            gth_overnight: false,
+            last_trading_day_close_us: None,
+            settlement,
+        }
+    }
+
+    #[test]
+    fn third_friday_recognises_canonical_spx_expirations() {
+        // 3rd Friday of May 2026 is the 15th.
+        assert!(is_third_friday(20_260_515));
+        // 2nd Friday of May 2026 — the 8th.
+        assert!(!is_third_friday(20_260_508));
+        // 4th Friday of May 2026 — the 22nd.
+        assert!(!is_third_friday(20_260_522));
+        // EOM Friday of May 2026 — the 29th.
+        assert!(!is_third_friday(20_260_529));
+        // 3rd Friday of June 2026 = 19th (also March-cycle).
+        assert!(is_third_friday(20_260_619));
+        // Saturday March 21, 2026 — not Friday, even though the date
+        // is in the 15-21 window.
+        assert!(!is_third_friday(20_260_321));
+    }
+
+    #[test]
+    fn settlement_default_is_pm_for_every_class() {
+        // PM-settled SessionInfo on every supported class returns the
+        // PM cutoff (regular close or class-level last-trading-day
+        // override) regardless of expiration.
+        let pm = spx_session_with(Settlement::Pm);
+        // Standard third-Friday SPX → still PM cutoff per the row.
+        assert_eq!(pm.settlement_cutoff_us(20_260_515), PM_LAST_TRADING_DAY_US);
+        // Non-third-Friday SPX → same PM cutoff.
+        assert_eq!(pm.settlement_cutoff_us(20_260_522), PM_LAST_TRADING_DAY_US);
+    }
+
+    #[test]
+    fn settlement_am_open_fires_only_on_third_friday() {
+        let spx = spx_session_with(Settlement::AmOpen {
+            open_us_of_day: AM_SET_US,
+        });
+        // 3rd-Friday May 2026 (15th) → AM SET 09:30 ET.
+        assert_eq!(spx.settlement_cutoff_us(20_260_515), AM_SET_US);
+        // 4th Friday May 2026 (22nd) → PM cutoff (class-level last-
+        // trading-day override on OptionsCboeC1).
+        assert_eq!(spx.settlement_cutoff_us(20_260_522), PM_LAST_TRADING_DAY_US);
+        // EOM Friday May 2026 (29th) → PM cutoff.
+        assert_eq!(spx.settlement_cutoff_us(20_260_529), PM_LAST_TRADING_DAY_US);
+        // Mid-week Wednesday May 2026 (20th) → PM cutoff.
+        assert_eq!(spx.settlement_cutoff_us(20_260_520), PM_LAST_TRADING_DAY_US);
+    }
+
+    #[test]
+    fn settlement_am_open_falls_back_to_per_root_override_when_present() {
+        // When the row carries an explicit per-root last-trading-day
+        // override, the PM branch returns that value (NOT the class
+        // fallback or the regular close).
+        let mut info = spx_session_with(Settlement::AmOpen {
+            open_us_of_day: AM_SET_US,
+        });
+        // Pin a per-root override at 16:30 ET (60_300_000_000 μs) to
+        // verify the priority ordering.
+        let custom_pm_close = 16_i64 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
+        info.last_trading_day_close_us = Some(custom_pm_close);
+        // Non-third-Friday → per-root override.
+        assert_eq!(info.settlement_cutoff_us(20_260_522), custom_pm_close);
+        // Third-Friday → AM SET trumps per-root override.
+        assert_eq!(info.settlement_cutoff_us(20_260_515), AM_SET_US);
+    }
+
+    #[test]
+    fn settlement_falls_back_to_regular_close_when_no_overrides() {
+        // Strip the class-level override by using a non-C1 class so
+        // the only PM source is `regular.close_us`.
+        let info = SessionInfo {
+            root: "SPY".into(),
+            trading_class: TradingClass::EquityNyseArca,
+            regular: TimeWindow::from_clock_et(9, 30, 16, 0),
+            pre_market: None,
+            post_market: None,
+            curb: None,
+            gth: None,
+            gth_overnight: false,
+            last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
+        };
+        // 16:00 ET in microseconds-of-day.
+        assert_eq!(info.settlement_cutoff_us(20_260_515), 57_600_000_000);
+    }
+
+    #[test]
+    fn settlement_pm_uses_regular_close_for_non_expiry_lookups() {
+        // The doc-tested behaviour: SessionInfo with PM settlement
+        // and no per-root or class override returns the regular close
+        // for the queried expiration day.
+        let regular_close = C1_REGULAR_CLOSE_US;
+        let info = SessionInfo {
+            root: "FAKEC1".into(),
+            // OptionsCboeBzxC2Edgx has no class-level last-trading-
+            // day override, so only the regular close applies.
+            trading_class: TradingClass::OptionsCboeBzxC2Edgx,
+            regular: TimeWindow::new(0, regular_close),
+            pre_market: None,
+            post_market: None,
+            curb: None,
+            gth: None,
+            gth_overnight: false,
+            last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
+        };
+        assert_eq!(info.settlement_cutoff_us(20_260_515), regular_close);
     }
 }

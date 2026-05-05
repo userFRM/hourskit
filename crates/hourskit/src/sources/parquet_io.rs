@@ -29,7 +29,13 @@
 //! gth_close_us               : Int64                (nullable)
 //! gth_overnight              : Boolean              (nullable)
 //! last_trading_day_close_us  : Int64                (nullable)
+//! settlement_am_open_us      : Int64                (nullable)
 //! ```
+//!
+//! `settlement_am_open_us` encodes the AM SET print microsecond-of-day
+//! for [`Settlement::AmOpen`][crate::Settlement::AmOpen] rows
+//! (currently the SPX root family at 09:30 ET); NULL maps to
+//! [`Settlement::Pm`][crate::Settlement::Pm].
 //!
 //! Compression: ZSTD level 3. Row group size: 10 000 rows.
 
@@ -45,7 +51,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
-use crate::session::{SessionInfo, TimeWindow, TradingClass};
+use crate::session::{SessionInfo, Settlement, TimeWindow, TradingClass};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -76,6 +82,7 @@ fn sessions_schema() -> SchemaRef {
         Field::new("gth_close_us", DataType::Int64, true),
         Field::new("gth_overnight", DataType::Boolean, true),
         Field::new("last_trading_day_close_us", DataType::Int64, true),
+        Field::new("settlement_am_open_us", DataType::Int64, true),
     ]))
 }
 
@@ -260,6 +267,13 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
         .collect();
     let last_trading_day_close: Int64Array =
         sorted.iter().map(|r| r.last_trading_day_close_us).collect();
+    let settlement_am_open: Int64Array = sorted
+        .iter()
+        .map(|r| match r.settlement {
+            Settlement::AmOpen { open_us_of_day } => Some(open_us_of_day),
+            Settlement::Pm => None,
+        })
+        .collect();
 
     let schema = sessions_schema();
     let batch = RecordBatch::try_new(
@@ -279,6 +293,7 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
             Arc::new(gth_close),
             Arc::new(gth_overnight),
             Arc::new(last_trading_day_close),
+            Arc::new(settlement_am_open),
         ],
     )?;
 
@@ -329,6 +344,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
         let gth_overnight = cast_bool_col(&batch, FILE_SESSIONS, 12, "gth_overnight")?;
         let last_trading_day_close =
             cast_i64_col(&batch, FILE_SESSIONS, 13, "last_trading_day_close_us")?;
+        let settlement_am_open = cast_i64_col(&batch, FILE_SESSIONS, 14, "settlement_am_open_us")?;
 
         for i in 0..batch.num_rows() {
             if roots.is_null(i)
@@ -363,6 +379,13 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
             } else {
                 Some(last_trading_day_close.value(i))
             };
+            let settlement = if settlement_am_open.is_null(i) {
+                Settlement::Pm
+            } else {
+                Settlement::AmOpen {
+                    open_us_of_day: settlement_am_open.value(i),
+                }
+            };
 
             rows.push(SessionInfo {
                 root: roots.value(i).to_string(),
@@ -374,6 +397,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
                 gth,
                 gth_overnight: overnight,
                 last_trading_day_close_us,
+                settlement,
             });
         }
     }
@@ -421,7 +445,7 @@ fn optional_window_strict(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{SessionInfo, TimeWindow, TradingClass};
+    use crate::session::{SessionInfo, Settlement, TimeWindow, TradingClass};
     use tempfile::tempdir;
 
     fn fixture_rows() -> Vec<SessionInfo> {
@@ -439,6 +463,9 @@ mod tests {
                 )),
                 gth_overnight: true,
                 last_trading_day_close_us: None,
+                settlement: Settlement::AmOpen {
+                    open_us_of_day: AM_SET_US,
+                },
             },
             SessionInfo {
                 root: "SPXW".into(),
@@ -453,6 +480,7 @@ mod tests {
                 )),
                 gth_overnight: true,
                 last_trading_day_close_us: Some(57_600_000_000),
+                settlement: Settlement::Pm,
             },
             SessionInfo {
                 root: "AAPL".into(),
@@ -464,9 +492,16 @@ mod tests {
                 gth: Some(TimeWindow::from_clock_et(21, 0, 4, 0)),
                 gth_overnight: true,
                 last_trading_day_close_us: None,
+                settlement: Settlement::Pm,
             },
         ]
     }
+
+    /// 09:30 ET in microseconds-of-day — the AM SET print time for
+    /// SPX standard third-Friday expirations. Pulled to module scope so
+    /// `clippy::items_after_statements` stays happy in the round-trip
+    /// test below.
+    const AM_SET_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
 
     #[test]
     fn round_trip_preserves_full_session_payload() -> Result<()> {
@@ -487,11 +522,25 @@ mod tests {
             .find(|r| r.root == "SPX")
             .expect("SPX in fixture");
         assert_eq!(spx.last_trading_day_close_us, None);
+        // SPX carries the AM SET settlement convention; AmOpen at 09:30 ET.
+        assert_eq!(
+            spx.settlement,
+            Settlement::AmOpen {
+                open_us_of_day: AM_SET_US,
+            },
+        );
         let spxw = back
             .iter()
             .find(|r| r.root == "SPXW")
             .expect("SPXW in fixture");
         assert_eq!(spxw.last_trading_day_close_us, Some(57_600_000_000));
+        // SPXW is PM-settled regardless of expiration weekday.
+        assert_eq!(spxw.settlement, Settlement::Pm);
+        let aapl = back
+            .iter()
+            .find(|r| r.root == "AAPL")
+            .expect("AAPL in fixture");
+        assert_eq!(aapl.settlement, Settlement::Pm);
         Ok(())
     }
 
@@ -541,6 +590,7 @@ mod tests {
             Field::new("gth_close_us", DataType::Int64, false),
             Field::new("gth_overnight", DataType::Boolean, false),
             Field::new("last_trading_day_close_us", DataType::Int64, false),
+            Field::new("settlement_am_open_us", DataType::Int64, false),
         ]));
         let zeros: Int64Array = std::iter::repeat(Some(0_i64)).take(1).collect();
         let bools: BooleanArray = std::iter::repeat(Some(false)).take(1).collect();
@@ -559,6 +609,7 @@ mod tests {
             Arc::new(zeros.clone()),
             Arc::new(zeros.clone()),
             Arc::new(bools),
+            Arc::new(zeros.clone()),
             Arc::new(zeros),
         ];
         let batch = RecordBatch::try_new(Arc::clone(&wrong_schema), columns)?;
@@ -605,6 +656,7 @@ mod tests {
             Arc::new(null_int.clone()),
             Arc::new(null_int.clone()),
             Arc::new(null_bool),
+            Arc::new(null_int.clone()),
             Arc::new(null_int),
         ];
         let batch = RecordBatch::try_new(Arc::clone(&schema), columns)?;
