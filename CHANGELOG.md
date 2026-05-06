@@ -16,6 +16,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   multiplier inside minute-precision time-to-expiration walks. Removes
   duplicated `const MS_PER_DAY: i32 = 86_400_000;` declarations in
   downstream analytics crates.
+- `hourskit::time::days_from_epoch(yyyymmdd: i32) -> i32` and
+  `hourskit::time::days_between_yyyymmdd(from: i32, to: i32) -> i32`
+  Gregorian-date arithmetic helpers. Linear-scan implementation
+  matching the three private copies that `thetadatadx-analytics`
+  carried in `_shared/time_to_expiration.rs`,
+  `_shared/market_data/rate.rs`, and `greeks/emission.rs`. Output-byte
+  parity verified by a 47k-row sweep across every valid YYYYMMDD in
+  1970..=2099 inside `time::tests`.
 
 ## [0.3.0] - 2026-05-05
 
