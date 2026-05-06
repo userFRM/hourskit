@@ -41,6 +41,22 @@
 //! assert_eq!(days_between_yyyymmdd(20_250_228, 20_250_301), 1);
 //! ```
 //!
+//! # RTH window
+//!
+//! The four `RTH_*` constants encode the SIP equity regular-trading-
+//! hours window in `i32` ms-of-day and `i64` μs-of-day for callers
+//! that classify a single tick without a [`crate::SessionInfo`] in
+//! hand. The boundary is `[09:30 ET, 16:00 ET)` half-open in the
+//! same convention as [`crate::TimeWindow`].
+//!
+//! ```
+//! use hourskit::time::{RTH_END_MS, RTH_START_MS};
+//! const NINE_THIRTY_MS: i32 = 34_200_000;
+//! const FOUR_PM_MS: i32 = 57_600_000;
+//! assert_eq!(RTH_START_MS, NINE_THIRTY_MS);
+//! assert_eq!(RTH_END_MS, FOUR_PM_MS);
+//! ```
+//!
 //! # Stability
 //!
 //! These constants are protocol facts; their values are part of the
@@ -71,6 +87,54 @@ pub const SECONDS_PER_DAY: i32 = 86_400;
 /// time-to-expiration decompositions, and as the denominator term in
 /// CBOE's `T = minutes_to_expiry / (365 × MIN_PER_DAY)` formula.
 pub const MIN_PER_DAY: i32 = 1_440;
+
+// ---------------------------------------------------------------------------
+// Regular-trading-hours window (US equities)
+// ---------------------------------------------------------------------------
+
+/// Regular-trading-hours session start (09:30:00 ET) in
+/// milliseconds-of-day.
+///
+/// `9 * 3_600_000 + 30 * 60_000 = 34_200_000`. The lower bound on
+/// the SIP equity RTH window — every consolidated-tape trade with a
+/// ms-of-day below this value is in the pre-market session.
+///
+/// Use this constant for single-tick RTH classification when the
+/// caller does not have a [`crate::SessionInfo`] in hand. Callers
+/// with session info should resolve through
+/// [`crate::TimeWindow::contains_ms`] on the row's
+/// [`crate::SessionInfo::regular`] window so per-class deviations
+/// (e.g. Cboe BZX/EDGX 02:30 ET early-trading) are honoured.
+pub const RTH_START_MS: i32 = 34_200_000;
+
+/// Regular-trading-hours session end (16:00:00 ET) in
+/// milliseconds-of-day.
+///
+/// `16 * 3_600_000 = 57_600_000`. The upper bound on the SIP equity
+/// RTH window — every consolidated-tape trade with a ms-of-day at
+/// or above this value is in the post-market session.
+///
+/// Coincides numerically with
+/// [`crate::session::OPTION_PM_SETTLEMENT_MS`]; the two constants
+/// have different names because the meaning is different — RTH end
+/// is the equity-session boundary; PM settlement is the option-
+/// trading cutoff for cash-settled index options on their last
+/// trading day.
+pub const RTH_END_MS: i32 = 57_600_000;
+
+/// Regular-trading-hours session start (09:30:00 ET) in
+/// microseconds-of-day.
+///
+/// `RTH_START_MS * 1_000 = 34_200_000_000`. Provided for callers
+/// that compose with `i64` μs-of-day arithmetic on the FPSS wire.
+pub const RTH_START_US: i64 = 34_200_000_000;
+
+/// Regular-trading-hours session end (16:00:00 ET) in
+/// microseconds-of-day.
+///
+/// `RTH_END_MS * 1_000 = 57_600_000_000`. Provided for callers
+/// that compose with `i64` μs-of-day arithmetic on the FPSS wire.
+pub const RTH_END_US: i64 = 57_600_000_000;
 
 // ---------------------------------------------------------------------------
 // Gregorian-date arithmetic
@@ -203,6 +267,49 @@ mod tests {
         assert!(SECONDS_PER_DAY < i32::MAX);
         assert!(MIN_PER_DAY < i32::MAX);
     };
+
+    // ---------------------------------------------------------------
+    //  RTH window
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn rth_window_constants_match_clock_values() {
+        // 09:30:00 ET in milliseconds-of-day.
+        assert_eq!(RTH_START_MS, 9 * 3_600_000 + 30 * 60_000);
+        // 16:00:00 ET in milliseconds-of-day.
+        assert_eq!(RTH_END_MS, 16 * 3_600_000);
+        // 09:30:00 ET in microseconds-of-day.
+        assert_eq!(
+            RTH_START_US,
+            9_i64 * 3_600 * 1_000_000 + 30_i64 * 60 * 1_000_000
+        );
+        // 16:00:00 ET in microseconds-of-day.
+        assert_eq!(RTH_END_US, 16_i64 * 3_600 * 1_000_000);
+    }
+
+    // Compile-time guards: μs and ms variants must agree under a
+    // 1_000-factor rescale.
+    const _: () = {
+        assert!(RTH_START_US == (RTH_START_MS as i64) * 1_000);
+        assert!(RTH_END_US == (RTH_END_MS as i64) * 1_000);
+        assert!(RTH_START_MS < RTH_END_MS);
+        assert!(RTH_START_US < RTH_END_US);
+        // RTH window fits inside MS_PER_DAY upper bound.
+        assert!(RTH_END_MS < MS_PER_DAY);
+    };
+
+    #[test]
+    fn rth_window_classifies_typical_session_stamps() {
+        // 09:29:59 ET → just before RTH open → pre-market.
+        let pre_open_ms: i32 = 9 * 3_600_000 + 29 * 60_000 + 59_000;
+        assert!(pre_open_ms < RTH_START_MS);
+        // 12:00:00 ET → mid-session.
+        let noon_ms: i32 = 12 * 3_600_000;
+        assert!((RTH_START_MS..RTH_END_MS).contains(&noon_ms));
+        // 16:00:00.001 ET → first post-market.
+        let post_close_ms: i32 = 16 * 3_600_000 + 1;
+        assert!(post_close_ms >= RTH_END_MS);
+    }
 
     // ---------------------------------------------------------------
     //  Gregorian-date helpers

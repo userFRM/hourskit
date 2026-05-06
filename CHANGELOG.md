@@ -33,6 +33,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   literal. Internal sites in `TradingClass::class_level_last_trading_day_close_us`,
   the `examples/seed_data` per-root override roster, and the
   `parquet_io` round-trip fixture now resolve through the constant.
+- `hourskit::time::RTH_START_MS: i32 = 34_200_000`,
+  `hourskit::time::RTH_END_MS: i32 = 57_600_000`,
+  `hourskit::time::RTH_START_US: i64 = 34_200_000_000`, and
+  `hourskit::time::RTH_END_US: i64 = 57_600_000_000` constants
+  encoding the SIP equity regular-trading-hours window
+  `[09:30 ET, 16:00 ET)`. Compile-time guards pin the μs/ms
+  variants together. Removes duplicated `RTH_START_MS` /
+  `RTH_END_MS` declarations in `thetadatadx-analytics`
+  (`analytics/ohlcvc/bar.rs`).
 
 ## [0.3.0] - 2026-05-05
 
