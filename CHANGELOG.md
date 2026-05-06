@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-05
+
 ### Added
 
 - `hourskit::time` module exporting day-length constants in canonical
@@ -246,4 +248,5 @@ class)`:
   in-tree Rust constants. Maintainer regenerates parquet via
   `cargo run --example seed_data`.
 
+[0.4.0]: https://github.com/userFRM/hourskit/releases/tag/v0.4.0
 [0.1.0]: https://github.com/userFRM/hourskit/releases/tag/v0.1.0
