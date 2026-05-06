@@ -11,9 +11,9 @@ use thiserror::Error;
 /// `?` propagates it through any `Result<_, hourskit::Error>` context.
 #[derive(Debug, Error)]
 pub enum Error {
-    /// The requested symbol root is not present in the seed data.
-    #[error("unknown root: {0}")]
-    UnknownRoot(String),
+    /// The requested symbol is not present in the seed data.
+    #[error("unknown symbol: {0}")]
+    UnknownSymbol(String),
 
     /// Generic data-source error (used by upstream fetcher transports).
     #[error("source error: {0}")]
@@ -48,7 +48,7 @@ pub enum Error {
     DataIntegrity {
         /// Logical filename that contained the bad row.
         file: String,
-        /// Root or row identifier (whichever is more useful for the operator).
+        /// Symbol or row identifier (whichever is more useful for the operator).
         row: String,
         /// Field whose constraint was violated (e.g. `pre_market`, `gth`).
         field: String,

@@ -17,7 +17,7 @@ verified, no API keys.
 | `EquityCboeByxEdga` | 09:30-16:00 | 07:00-09:30 | 16:00-20:00 | — | — |
 
 Last-trading-day exception per CBOE Rule 5.1(b)(2)(C): the named cash-
-settled index roots and the open-ended Nonstandard-Expirations bullet
+settled index symbols and the open-ended Nonstandard-Expirations bullet
 both close at 16:00 ET on contract expiry day. Resolved through
 `SessionInfo::effective_close_us(event_date, exp_date)`.
 
@@ -50,9 +50,9 @@ async fn main() -> hourskit::Result<()> {
 }
 ```
 
-Blocking variants: `hourskit::session_blocking(root)`,
-`Hourskit::session_blocking(root)`,
-`Hourskit::session_for_class_blocking(root, class)`,
+Blocking variants: `hourskit::session_blocking(symbol)`,
+`Hourskit::session_blocking(symbol)`,
+`Hourskit::session_for_class_blocking(symbol, class)`,
 `Hourskit::sessions_all_blocking()`.
 
 ## API
@@ -60,8 +60,8 @@ Blocking variants: `hourskit::session_blocking(root)`,
 | Symbol | Description |
 |---|---|
 | `Hourskit` | Stateful client. Builder methods: `with_base_url`, `with_cache_dir`, `with_mirror_url`, `with_staleness_ceiling`. |
-| `Hourskit::session(root)` / `session_for_class(root, class)` / `sessions_all()` | Async lookups + their `_blocking` siblings. |
-| `hourskit::session(root)` / `session_blocking(root)` | Free-function shortcuts via a process-wide client. |
+| `Hourskit::session(symbol)` / `session_for_class(symbol, class)` / `sessions_all()` | Async lookups + their `_blocking` siblings. |
+| `hourskit::session(symbol)` / `session_blocking(symbol)` | Free-function shortcuts via a process-wide client. |
 | `SessionInfo` | `regular`, `pre_market`, `post_market`, `curb`, `gth`, `gth_overnight`, `last_trading_day_close_us`. |
 | `SessionInfo::effective_close_us(event_date, exp_date)` | Per-contract close-of-trading microsecond-of-day. |
 | `SessionInfo::option_close_us` / `last_trading_us` / `is_options` / `is_equity` | Read-only accessors. |
@@ -93,7 +93,7 @@ Environment overrides: `HOURSKIT_BASE_URL`, `HOURSKIT_CACHE_DIR`,
 ## CLI
 
 ```
-hourskit-cli session --root SPX [--unit us|ms|s] [--format text|json]
+hourskit-cli session --symbol SPX [--unit us|ms|s] [--format text|json]
 hourskit-cli manifest                                    # regenerate data/manifest.json
 hourskit-cli refresh                                     # force fresh fetch from upstream
 ```

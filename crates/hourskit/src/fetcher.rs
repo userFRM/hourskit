@@ -701,7 +701,7 @@ fn clone_error(e: &Arc<Error>) -> Error {
             ceiling_secs: *ceiling_secs,
         },
         Error::BlockingFromCurrentThreadRuntime => Error::BlockingFromCurrentThreadRuntime,
-        Error::UnknownRoot(s) => Error::UnknownRoot(s.clone()),
+        Error::UnknownSymbol(s) => Error::UnknownSymbol(s.clone()),
         Error::Source(s) => Error::Source(s.clone()),
         Error::Parquet(s) => Error::Parquet(s.clone()),
         // Variants that wrap non-clonable inner state (reqwest::Error, ...)

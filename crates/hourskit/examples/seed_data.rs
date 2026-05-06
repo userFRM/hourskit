@@ -39,7 +39,7 @@
 //!    SPEQX, MRUT) and (b) an open-ended catch-all for "Index Options
 //!    with Nonstandard Expirations" covering every Cboe C1 Weekly /
 //!    EOM / Monthly / Quarterly / QIX series. The kit encodes (a)
-//!    per-root in [`LAST_TRADING_DAY_EARLY_CLOSE_ROOTS`] and (b) at the
+//!    per-symbol in [`LAST_TRADING_DAY_EARLY_CLOSE_SYMBOLS`] and (b) at the
 //!    class level via [`hourskit::TradingClass::class_level_last_trading_day_close_us`].
 //!    <https://cdn.cboe.com/resources/regulation/rule_book/C1_Exchange_Rule_Book.pdf>
 //! 2. **Firstrade Help Center — "Options that trade until 4:15 PM Eastern
@@ -134,7 +134,7 @@ fn main() -> hourskit::Result<()> {
 ///   `VXST`, `YUK`.
 ///
 /// `SPX (PM Expiration)` and `XSP (AM Expiration)` are kept verbatim as
-/// distinct root strings so the parquet remains directly queryable for
+/// distinct symbol strings so the parquet remains directly queryable for
 /// downstream analytics that need to discriminate the AM/PM-settled
 /// variant explicitly.
 const EXTENDED_TRADING_ROSTER: &[&str] = &[
@@ -226,12 +226,12 @@ const EXTENDED_TRADING_ROSTER: &[&str] = &[
 /// C1, eligible for the 16:15-17:00 Curb session AND the OPRA 20:15 prior
 /// to 09:25 current GTH window.
 ///
-/// All of these MUST appear in [`EXTENDED_TRADING_ROSTER`] above. Roots
+/// All of these MUST appear in [`EXTENDED_TRADING_ROSTER`] above. Symbols
 /// that are C1 but NOT on the 82-symbol roster (e.g. SPXW, NDXP, SPXPM,
 /// SPEQF, SPEQX, "XSP (PM Expiration)") are seeded by the bottom of
 /// [`extended_trading_options`] with `TradingClass::OptionsCboeC1`
 /// hard-coded.
-const C1_ROOTS: &[&str] = &[
+const C1_SYMBOLS: &[&str] = &[
     "SPX",
     "SPX (PM Expiration)",
     "XSP",
@@ -246,7 +246,7 @@ const C1_ROOTS: &[&str] = &[
     "MNX",
 ];
 
-/// Roots that close at 16:00 ET on contract expiry day per CBOE Rule
+/// Symbols that close at 16:00 ET on contract expiry day per CBOE Rule
 /// 5.1(b)(2)(C) — the explicitly-named subset.
 ///
 /// # Source — verbatim
@@ -271,12 +271,12 @@ const C1_ROOTS: &[&str] = &[
 /// > & XEO options will trade until 4:00 pm ET, and non-expiring options
 /// > will continue to trade until 4:15 pm ET.
 ///
-/// # Per-root vs. class-level encoding
+/// # Per-symbol vs. class-level encoding
 ///
 /// `hourskit` encodes the rule on TWO layers:
 ///
-/// 1. **Per-root** (this constant) — explicitly enumerates every named
-///    root from the rule + the broker quote, so seed-data lookups
+/// 1. **Per-symbol** (this constant) — explicitly enumerates every named
+///    symbol from the rule + the broker quote, so seed-data lookups
 ///    surface a typed `Some(57_600_000_000)` directly on the
 ///    [`SessionInfo`] row.
 /// 2. **Class-level catch-all** —
@@ -289,8 +289,8 @@ const C1_ROOTS: &[&str] = &[
 /// `NDXP`, `RUTW`, `SPXW`, `SPXPM`, `SPEQF`, `SPEQX`, `XSP (PM Expiration)`
 /// are NOT on `EXTENDED_TRADING_ROSTER` above (they sit on the broader
 /// Cboe C1 ladder); we still seed them here so callers querying these
-/// roots find a row.
-const LAST_TRADING_DAY_EARLY_CLOSE_ROOTS: &[&str] = &[
+/// symbols find a row.
+const LAST_TRADING_DAY_EARLY_CLOSE_SYMBOLS: &[&str] = &[
     // Firstrade-quoted roster (cash-settled named explicitly):
     "NDXP",
     "RUTW",
@@ -303,12 +303,12 @@ const LAST_TRADING_DAY_EARLY_CLOSE_ROOTS: &[&str] = &[
     "SPXPM",
     "SPEQF",
     "SPEQX",
-    // Literal-root string-encoded variants on the 82-symbol
+    // Literal-symbol string-encoded variants on the 82-symbol
     // EXTENDED_TRADING_ROSTER (Firstrade encodes SPX p.m.-settled as a
-    // distinct root string):
+    // distinct symbol string):
     "SPX (PM Expiration)",
     // Rule-derived addition: XSP p.m.-settled mirrors SPX (PM Expiration)
-    // as a literal-root variant. Not in the user-supplied
+    // as a literal-symbol variant. Not in the user-supplied
     // EXTENDED_TRADING_ROSTER, but the rule names it explicitly so we
     // seed an additional row.
     "XSP (PM Expiration)",
@@ -323,22 +323,22 @@ const LAST_TRADING_DAY_CLOSE_US: i64 = OPTION_PM_SETTLEMENT_US;
 /// for SPX standard third-Friday expirations.
 const AM_SET_PRINT_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
 
-/// Roster of roots whose **standard third-Friday-of-the-month**
+/// Roster of symbols whose **standard third-Friday-of-the-month**
 /// expirations are AM-settled per CBOE methodology. The settlement
 /// rule is encoded on the `SessionInfo` row as
 /// [`Settlement::AmOpen { open_us_of_day: AM_SET_PRINT_US }`]; the
 /// per-expiration classifier in
 /// [`hourskit::SessionInfo::settlement_cutoff_us`] then returns the
 /// AM print time only on third-Friday expirations and falls back to
-/// the PM cutoff on every other expiration of the same root
+/// the PM cutoff on every other expiration of the same symbol
 /// (weeklies, EOM, mid-week, etc.).
 ///
 /// Today the roster contains SPX only — the original CBOE VIX
 /// constituent. XSP, NDX, RUT and other AM-settled cash-settled index
-/// roots are tracked under a separate scope (see hourskit issue #8
-/// follow-ups) so this PR ships the bit-exact rule the published VIX
+/// symbols are tracked under a separate scope (see hourskit issue #8
+/// follow-ups) so this set ships the bit-exact rule the published VIX
 /// methodology calls for and nothing more.
-const AM_SET_THIRD_FRIDAY_ROOTS: &[&str] = &["SPX"];
+const AM_SET_THIRD_FRIDAY_SYMBOLS: &[&str] = &["SPX"];
 
 fn extended_trading_options() -> Vec<SessionInfo> {
     let regular = TimeWindow::from_clock_et(9, 30, 16, 15);
@@ -348,13 +348,13 @@ fn extended_trading_options() -> Vec<SessionInfo> {
     let mut rows: Vec<SessionInfo> = EXTENDED_TRADING_ROSTER
         .iter()
         .map(|r| {
-            let class_is_c1 = C1_ROOTS.contains(r);
-            let last_trading_day_close_us = if LAST_TRADING_DAY_EARLY_CLOSE_ROOTS.contains(r) {
+            let class_is_c1 = C1_SYMBOLS.contains(r);
+            let last_trading_day_close_us = if LAST_TRADING_DAY_EARLY_CLOSE_SYMBOLS.contains(r) {
                 Some(LAST_TRADING_DAY_CLOSE_US)
             } else {
                 None
             };
-            let settlement = if AM_SET_THIRD_FRIDAY_ROOTS.contains(r) {
+            let settlement = if AM_SET_THIRD_FRIDAY_SYMBOLS.contains(r) {
                 Settlement::AmOpen {
                     open_us_of_day: AM_SET_PRINT_US,
                 }
@@ -362,7 +362,7 @@ fn extended_trading_options() -> Vec<SessionInfo> {
                 Settlement::Pm
             };
             SessionInfo {
-                root: (*r).to_string(),
+                symbol: (*r).to_string(),
                 trading_class: if class_is_c1 {
                     TradingClass::OptionsCboeC1
                 } else {
@@ -384,16 +384,16 @@ fn extended_trading_options() -> Vec<SessionInfo> {
     // aren't on the EXTENDED_TRADING_ROSTER list above (NDXP, RUTW, SPXW,
     // SPXPM, SPEQF, SPEQX, XSP (PM Expiration)). Seed them as
     // OptionsCboeC1 with the same Curb + GTH treatment their underlier
-    // carries, so callers querying any of the named early-close roots get
+    // carries, so callers querying any of the named early-close symbols get
     // a row directly. Every name in this carry-over set is PM-settled
     // (SPXW weeklies, SPXPM, SPEQF, SPEQX, "XSP (PM Expiration)" all
     // explicitly PM by rule); none qualify for AM SET treatment.
-    for &root in LAST_TRADING_DAY_EARLY_CLOSE_ROOTS {
-        if EXTENDED_TRADING_ROSTER.contains(&root) {
+    for &symbol in LAST_TRADING_DAY_EARLY_CLOSE_SYMBOLS {
+        if EXTENDED_TRADING_ROSTER.contains(&symbol) {
             continue;
         }
         rows.push(SessionInfo {
-            root: root.to_string(),
+            symbol: symbol.to_string(),
             trading_class: TradingClass::OptionsCboeC1,
             regular,
             pre_market: None,
@@ -424,15 +424,15 @@ fn equity_nasdaq() -> Vec<SessionInfo> {
     // this as "overnight" because the open and close span midnight (open
     // numerically > close).
     let gth = TimeWindow::from_clock_et(21, 0, 4, 0);
-    let roots = [
+    let symbols = [
         "AAPL", "MSFT", "AMZN", "NVDA", "META", "GOOGL", "GOOG", "TSLA", "AMD", "NFLX", "INTC",
         "CSCO", "ADBE", "PEP", "AVGO", "COST", "QCOM", "TXN", "TMUS", "QQQ", "SOXX", "SMH", "TQQQ",
         "SQQQ",
     ];
-    roots
+    symbols
         .iter()
         .map(|r| SessionInfo {
-            root: (*r).to_string(),
+            symbol: (*r).to_string(),
             trading_class: TradingClass::EquityNasdaq,
             regular,
             pre_market: Some(pre),
@@ -453,16 +453,16 @@ fn equity_nyse_arca() -> Vec<SessionInfo> {
     let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
     let pre = TimeWindow::from_clock_et(4, 0, 9, 30);
     let post = TimeWindow::from_clock_et(16, 0, 20, 0);
-    let roots = [
+    let symbols = [
         "SPY", "DIA", "IWM", "EEM", "EFA", "IVV", "VOO", "VTI", "IJR", "IJH", "IWB", "IWD", "IWF",
         "IWO", "XLF", "XLK", "XLE", "XLV", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC", "GDX",
         "GDXJ", "TLT", "IEF", "SHY", "HYG", "LQD", "TIP", "GLD", "SLV", "USO", "UNG", "VXX",
         "UVXY", "BRK.B",
     ];
-    roots
+    symbols
         .iter()
         .map(|r| SessionInfo {
-            root: (*r).to_string(),
+            symbol: (*r).to_string(),
             trading_class: TradingClass::EquityNyseArca,
             regular,
             pre_market: Some(pre),
@@ -483,16 +483,16 @@ fn equity_nyse_arca() -> Vec<SessionInfo> {
 /// We model the early-trading window AS the pre_market field; the standard
 /// 04:00-09:30 ET window concatenates with it. Callers wanting pure 04:00
 /// pre-market should consult [`TradingClass::EquityNasdaq`] or
-/// [`TradingClass::EquityNyseArca`] data for the same root.
+/// [`TradingClass::EquityNyseArca`] data for the same symbol.
 fn equity_cboe_bzx_edgx() -> Vec<SessionInfo> {
     let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
     let pre = TimeWindow::from_clock_et(2, 30, 9, 30);
     let post = TimeWindow::from_clock_et(16, 0, 20, 0);
-    let roots = ["SPY", "QQQ", "IWM", "DIA"];
-    roots
+    let symbols = ["SPY", "QQQ", "IWM", "DIA"];
+    symbols
         .iter()
         .map(|r| SessionInfo {
-            root: (*r).to_string(),
+            symbol: (*r).to_string(),
             trading_class: TradingClass::EquityCboeBzxEdgx,
             regular,
             pre_market: Some(pre),
@@ -513,11 +513,11 @@ fn equity_cboe_byx_edga() -> Vec<SessionInfo> {
     let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
     let pre = TimeWindow::from_clock_et(7, 0, 9, 30);
     let post = TimeWindow::from_clock_et(16, 0, 20, 0);
-    let roots = ["SPY", "QQQ", "IWM", "DIA"];
-    roots
+    let symbols = ["SPY", "QQQ", "IWM", "DIA"];
+    symbols
         .iter()
         .map(|r| SessionInfo {
-            root: (*r).to_string(),
+            symbol: (*r).to_string(),
             trading_class: TradingClass::EquityCboeByxEdga,
             regular,
             pre_market: Some(pre),

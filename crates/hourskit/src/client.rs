@@ -1,4 +1,4 @@
-//! Stateful `Hourskit` client — single `session(root)` endpoint.
+//! Stateful `Hourskit` client — single `session(symbol)` endpoint.
 //!
 //! Fetches `sessions.parquet` from GitHub raw (or a configurable origin)
 //! with an XDG-compliant local cache + ETag revalidation. Falls back to
@@ -43,7 +43,7 @@ const FETCH_KEY: &str = "sessions";
 /// Stateful hourskit client.
 ///
 /// Wraps an ETag-aware cached fetcher and exposes a single
-/// [`session(root)`][Self::session] endpoint. Create once and reuse across
+/// [`session(symbol)`][Self::session] endpoint. Create once and reuse across
 /// calls; the internal reqwest client is kept alive for connection pooling.
 ///
 /// # Infallible construction
@@ -154,42 +154,42 @@ impl Hourskit {
         self
     }
 
-    /// Look up the [`SessionInfo`] for `root`.
+    /// Look up the [`SessionInfo`] for `symbol`.
     ///
     /// Returns `Ok(None)` when no row matches; lookup is case-insensitive
-    /// on the root. When a root resolves to multiple trading classes, the
-    /// row with the lowest [`crate::TradingClass::preference_rank`] is
+    /// on the symbol. When a symbol resolves to multiple trading classes,
+    /// the row with the lowest [`crate::TradingClass::preference_rank`] is
     /// returned. Use [`session_for_class`][Self::session_for_class] to pin
     /// a specific class.
     ///
     /// # Errors
     ///
     /// Returns [`Error`] on HTTP / parquet / verification failure.
-    pub async fn session(&self, root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
-        let needle = root.as_ref().to_ascii_uppercase();
+    pub async fn session(&self, symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
+        let needle = symbol.as_ref().to_ascii_uppercase();
         let rows = self.sessions_all().await?;
         Ok(rows
             .into_iter()
-            .filter(|r| r.root == needle)
+            .filter(|r| r.symbol == needle)
             .min_by_key(|r| r.trading_class.preference_rank()))
     }
 
-    /// Look up the [`SessionInfo`] for a specific `(root, trading_class)` pair.
+    /// Look up the [`SessionInfo`] for a specific `(symbol, trading_class)` pair.
     ///
     /// # Errors
     ///
     /// Returns [`Error`] on HTTP / parquet / verification failure.
     pub async fn session_for_class(
         &self,
-        root: impl AsRef<str>,
+        symbol: impl AsRef<str>,
         trading_class: &crate::TradingClass,
     ) -> Result<Option<SessionInfo>> {
-        let needle = root.as_ref().to_ascii_uppercase();
+        let needle = symbol.as_ref().to_ascii_uppercase();
         let target_wire = trading_class.as_wire();
         let rows = self.sessions_all().await?;
         Ok(rows
             .into_iter()
-            .find(|r| r.root == needle && r.trading_class.as_wire() == target_wire))
+            .find(|r| r.symbol == needle && r.trading_class.as_wire() == target_wire))
     }
 
     /// Read every row of the bundled session table.
@@ -218,8 +218,8 @@ impl Hourskit {
     /// Returns [`Error`] on HTTP / parquet / verification failure, or
     /// [`Error::BlockingFromCurrentThreadRuntime`] when invoked from a
     /// tokio current-thread runtime.
-    pub fn session_blocking(&self, root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
-        let needle = root.as_ref().to_string();
+    pub fn session_blocking(&self, symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
+        let needle = symbol.as_ref().to_string();
         block(self.session(needle))
     }
 
@@ -247,10 +247,10 @@ impl Hourskit {
     /// tokio current-thread runtime.
     pub fn session_for_class_blocking(
         &self,
-        root: impl AsRef<str>,
+        symbol: impl AsRef<str>,
         trading_class: &crate::TradingClass,
     ) -> Result<Option<SessionInfo>> {
-        let needle = root.as_ref().to_string();
+        let needle = symbol.as_ref().to_string();
         let class = trading_class.clone();
         block(async move { self.session_for_class(needle, &class).await })
     }

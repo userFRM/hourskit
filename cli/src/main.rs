@@ -3,9 +3,9 @@
 //! # Commands
 //!
 //! ```text
-//! hourskit-cli session  --root SPX                    # text output, default unit (ms)
-//! hourskit-cli session  --root SPX --unit us          # microseconds
-//! hourskit-cli session  --root QQQ --format json      # machine-readable
+//! hourskit-cli session  --symbol SPX                  # text output, default unit (ms)
+//! hourskit-cli session  --symbol SPX --unit us        # microseconds
+//! hourskit-cli session  --symbol QQQ --format json    # machine-readable
 //! hourskit-cli manifest                                # SHA-256 of every parquet file in `data/`
 //! hourskit-cli refresh                                 # force fresh fetch from upstream
 //! ```
@@ -37,7 +37,7 @@ use hourskit::{Hourskit, SessionInfo, TimeUnit, TimeWindow};
     propagate_version = true
 )]
 struct Cli {
-    /// Path to the data directory (default: `<repo-root>/data/`).
+    /// Path to the data directory (default: the repository's `data/` folder).
     /// Override with $HOURSKIT_DATA_DIR or this flag.
     #[arg(long, env = "HOURSKIT_DATA_DIR", global = true)]
     data_dir: Option<PathBuf>,
@@ -87,11 +87,11 @@ impl From<UnitFlag> for TimeUnit {
 /// Top-level subcommands.
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Print the [`SessionInfo`] for `--root` from bundled parquet.
+    /// Print the [`SessionInfo`] for `--symbol` from bundled parquet.
     Session {
-        /// Symbol root (e.g. SPX, QQQ, AAPL).
+        /// Symbol (e.g. SPX, QQQ, AAPL).
         #[arg(long)]
-        root: String,
+        symbol: String,
     },
 
     /// Generate (or regenerate) `data/manifest.json` with SHA-256 digests for
@@ -138,7 +138,7 @@ async fn run() -> Result<()> {
     hourskit::sources::bundled::invalidate_cache();
 
     match cli.cmd {
-        Command::Session { root } => cmd_session(&root, cli.format, cli.unit.into()),
+        Command::Session { symbol } => cmd_session(&symbol, cli.format, cli.unit.into()),
         Command::Manifest => cmd_manifest(&data_dir),
         Command::Refresh => cmd_refresh().await,
     }
@@ -146,15 +146,15 @@ async fn run() -> Result<()> {
 
 // ── session ───────────────────────────────────────────────────────────────────
 
-fn cmd_session(root: &str, format: OutputFormat, unit: TimeUnit) -> Result<()> {
-    let info = hourskit::sources::bundled::session(root)
-        .with_context(|| format!("loading session for {root}"))?;
+fn cmd_session(symbol: &str, format: OutputFormat, unit: TimeUnit) -> Result<()> {
+    let info = hourskit::sources::bundled::session(symbol)
+        .with_context(|| format!("loading session for {symbol}"))?;
     match info {
         Some(info) => print_session(&info, format, unit),
         None => print_kv(
             format,
-            &[("root", root.into()), ("found", JsonValue::Bool(false))],
-            &format!("{root}: no session row in bundled data"),
+            &[("symbol", symbol.into()), ("found", JsonValue::Bool(false))],
+            &format!("{symbol}: no session row in bundled data"),
         ),
     }
     Ok(())
@@ -163,7 +163,7 @@ fn cmd_session(root: &str, format: OutputFormat, unit: TimeUnit) -> Result<()> {
 fn print_session(info: &SessionInfo, format: OutputFormat, unit: TimeUnit) {
     match format {
         OutputFormat::Text => {
-            println!("{:<22} {}", "root:", info.root);
+            println!("{:<22} {}", "symbol:", info.symbol);
             println!("{:<22} {}", "trading_class:", info.trading_class);
             println!("{:<22} {}", "regular:", info.regular);
             print_window_text("pre_market:", info.pre_market.as_ref());
@@ -222,7 +222,7 @@ fn print_session(info: &SessionInfo, format: OutputFormat, unit: TimeUnit) {
                 _ => serde_json::json!({"kind": "unknown"}),
             };
             let value = serde_json::json!({
-                "root": info.root,
+                "symbol": info.symbol,
                 "trading_class": info.trading_class.as_wire(),
                 "unit": unit.to_string(),
                 "regular": window_json(&info.regular, unit),

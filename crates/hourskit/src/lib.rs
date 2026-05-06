@@ -123,7 +123,7 @@ fn global_client() -> &'static Hourskit {
     CLIENT.get_or_init(Hourskit::new)
 }
 
-/// Look up the [`SessionInfo`] for `root` via the process-wide client.
+/// Look up the [`SessionInfo`] for `symbol` via the process-wide client.
 ///
 /// Returns `Ok(None)` if no row matches. Lookup is case-insensitive.
 ///
@@ -131,8 +131,8 @@ fn global_client() -> &'static Hourskit {
 ///
 /// Propagates HTTP / parquet errors from the underlying fetcher.
 #[cfg(feature = "parquet-loader")]
-pub async fn session(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
-    global_client().session(root).await
+pub async fn session(symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
+    global_client().session(symbol).await
 }
 
 /// Blocking variant of [`session()`].
@@ -141,6 +141,6 @@ pub async fn session(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
 ///
 /// Propagates HTTP / parquet errors from the underlying fetcher.
 #[cfg(feature = "parquet-loader")]
-pub fn session_blocking(root: impl AsRef<str>) -> Result<Option<SessionInfo>> {
-    global_client().session_blocking(root)
+pub fn session_blocking(symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
+    global_client().session_blocking(symbol)
 }
