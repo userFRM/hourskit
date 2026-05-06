@@ -86,7 +86,9 @@
 
 use std::path::PathBuf;
 
-use hourskit::session::{SessionInfo, Settlement, TimeWindow, TradingClass};
+use hourskit::session::{
+    SessionInfo, Settlement, TimeWindow, TradingClass, OPTION_PM_SETTLEMENT_US,
+};
 use hourskit::sources::parquet_io::write_sessions;
 
 fn main() -> hourskit::Result<()> {
@@ -312,8 +314,10 @@ const LAST_TRADING_DAY_EARLY_CLOSE_ROOTS: &[&str] = &[
     "XSP (PM Expiration)",
 ];
 
-/// 16:00 ET expressed in microseconds-of-day.
-const LAST_TRADING_DAY_CLOSE_US: i64 = 57_600_000_000;
+/// 16:00 ET expressed in microseconds-of-day. Aliased to
+/// [`OPTION_PM_SETTLEMENT_US`] so the seed roster and the public
+/// protocol constant stay in sync.
+const LAST_TRADING_DAY_CLOSE_US: i64 = OPTION_PM_SETTLEMENT_US;
 
 /// 09:30 ET expressed in microseconds-of-day — the AM SET print time
 /// for SPX standard third-Friday expirations.

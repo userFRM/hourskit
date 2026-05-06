@@ -24,6 +24,15 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `_shared/market_data/rate.rs`, and `greeks/emission.rs`. Output-byte
   parity verified by a 47k-row sweep across every valid YYYYMMDD in
   1970..=2099 inside `time::tests`.
+- `hourskit::session::OPTION_PM_SETTLEMENT_US: i64 = 57_600_000_000`
+  and `hourskit::session::OPTION_PM_SETTLEMENT_MS: i32 = 57_600_000`
+  protocol constants encoding the 16:00 ET PM-settlement option-
+  trading cutoff per CBOE Rule 5.1(b)(2)(C). Surfaces the value as
+  a typed name so seed data, fixtures, and downstream analytics
+  callers without a `SessionInfo` in hand stop hardcoding the
+  literal. Internal sites in `TradingClass::class_level_last_trading_day_close_us`,
+  the `examples/seed_data` per-root override roster, and the
+  `parquet_io` round-trip fixture now resolve through the constant.
 
 ## [0.3.0] - 2026-05-05
 
