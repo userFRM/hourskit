@@ -444,7 +444,9 @@ fn optional_window_strict(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::session::{SessionInfo, Settlement, TimeWindow, TradingClass};
+    use crate::session::{
+        SessionInfo, Settlement, TimeWindow, TradingClass, OPTION_PM_SETTLEMENT_US,
+    };
     use tempfile::tempdir;
 
     fn fixture_rows() -> Vec<SessionInfo> {
@@ -478,7 +480,7 @@ mod tests {
                     9_i64 * 3_600 * 1_000_000 + 25 * 60 * 1_000_000,
                 )),
                 gth_overnight: true,
-                last_trading_day_close_us: Some(57_600_000_000),
+                last_trading_day_close_us: Some(OPTION_PM_SETTLEMENT_US),
                 settlement: Settlement::Pm,
             },
             SessionInfo {
@@ -532,7 +534,10 @@ mod tests {
             .iter()
             .find(|r| r.root == "SPXW")
             .expect("SPXW in fixture");
-        assert_eq!(spxw.last_trading_day_close_us, Some(57_600_000_000));
+        assert_eq!(
+            spxw.last_trading_day_close_us,
+            Some(OPTION_PM_SETTLEMENT_US)
+        );
         // SPXW is PM-settled regardless of expiration weekday.
         assert_eq!(spxw.settlement, Settlement::Pm);
         let aapl = back

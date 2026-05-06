@@ -330,7 +330,7 @@ impl TradingClass {
     #[must_use]
     pub const fn class_level_last_trading_day_close_us(&self) -> Option<i64> {
         match self {
-            Self::OptionsCboeC1 => Some(57_600_000_000),
+            Self::OptionsCboeC1 => Some(OPTION_PM_SETTLEMENT_US),
             _ => None,
         }
     }
@@ -350,6 +350,54 @@ const US_PER_SEC: i64 = 1_000_000;
 const US_PER_MIN: i64 = 60 * US_PER_SEC;
 const US_PER_HOUR: i64 = 60 * US_PER_MIN;
 const US_PER_DAY: i64 = 24 * US_PER_HOUR;
+
+// ---------------------------------------------------------------------------
+// PM-settlement protocol constants
+// ---------------------------------------------------------------------------
+
+/// PM-settlement option-trading cutoff for cash-settled index options
+/// expiring on the same trading day, in microseconds-of-day (ET).
+///
+/// 16:00 ET = `57_600_000_000` μs. Per CBOE Rule 5.1(b)(2)(C), every
+/// PM-settled cash-settled index option (NDXP, RUTW, MRUT, SPXW, XSP,
+/// OEX, XEO, plus the rule-named SPXPM / SPEQF / SPEQX and the
+/// literal-root SPX/XSP "(PM Expiration)" variants) closes at 16:00
+/// ET on its last trading day; non-expiring contracts on the same
+/// root continue trading until the [`SessionInfo::regular`] close
+/// (typically 16:15 ET on Cboe C1).
+///
+/// Use this constant as a **bare protocol value** for fixtures and
+/// for callers that lack a [`SessionInfo`] in hand. Callers with
+/// session info should resolve through
+/// [`SessionInfo::settlement_cutoff_us`] /
+/// [`SessionInfo::effective_close_us`] so per-root overrides and
+/// AM-settled SPX standard third-Friday rolls are honoured.
+///
+/// # Example
+///
+/// ```
+/// use hourskit::session::OPTION_PM_SETTLEMENT_US;
+/// assert_eq!(OPTION_PM_SETTLEMENT_US, 57_600_000_000);
+/// // 16:00:00 ET in microseconds = 16 * 3600 * 1_000_000.
+/// assert_eq!(OPTION_PM_SETTLEMENT_US, 16 * 3_600 * 1_000_000);
+/// ```
+pub const OPTION_PM_SETTLEMENT_US: i64 = 16 * US_PER_HOUR;
+
+/// PM-settlement option-trading cutoff in milliseconds-of-day (ET).
+///
+/// `OPTION_PM_SETTLEMENT_US / 1_000 = 57_600_000` ms. Provided for
+/// downstream consumers (analytics minute-precision `T` arithmetic)
+/// that operate on `i32` ms-of-day stamps. The two constants stay
+/// in sync via a compile-time guard inside `session::tests`.
+///
+/// # Example
+///
+/// ```
+/// use hourskit::session::{OPTION_PM_SETTLEMENT_MS, OPTION_PM_SETTLEMENT_US};
+/// assert_eq!(OPTION_PM_SETTLEMENT_MS, 57_600_000);
+/// assert_eq!(i64::from(OPTION_PM_SETTLEMENT_MS) * 1_000, OPTION_PM_SETTLEMENT_US);
+/// ```
+pub const OPTION_PM_SETTLEMENT_MS: i32 = 57_600_000;
 
 // ---------------------------------------------------------------------------
 // TimeWindow
@@ -1139,7 +1187,9 @@ mod tests {
     /// 09:30 ET expressed in microseconds-of-day.
     const AM_SET_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
     /// 16:00 ET — last-trading-day close for cash-settled C1 options.
-    const PM_LAST_TRADING_DAY_US: i64 = 57_600_000_000;
+    /// Pinned to [`OPTION_PM_SETTLEMENT_US`] so the test fixture and
+    /// the public protocol constant stay in sync.
+    const PM_LAST_TRADING_DAY_US: i64 = OPTION_PM_SETTLEMENT_US;
     /// 16:15 ET — Cboe C1 regular-session close.
     const C1_REGULAR_CLOSE_US: i64 = 16 * 3_600 * 1_000_000 + 15 * 60 * 1_000_000;
 
@@ -1262,5 +1312,36 @@ mod tests {
             settlement: Settlement::Pm,
         };
         assert_eq!(info.settlement_cutoff_us(20_260_515), regular_close);
+    }
+
+    // ── PM-settlement protocol constants ───────────────────────────
+
+    #[test]
+    fn pm_settlement_constant_matches_protocol_value() {
+        // 16:00 ET expressed two equivalent ways: 16 * 3600 hours
+        // and the literal 57_600_000_000 microseconds. The constant
+        // pins the protocol fact at one location.
+        assert_eq!(OPTION_PM_SETTLEMENT_US, 57_600_000_000);
+        assert_eq!(OPTION_PM_SETTLEMENT_US, 16 * 3_600 * 1_000_000);
+        assert_eq!(OPTION_PM_SETTLEMENT_MS, 57_600_000);
+        assert_eq!(OPTION_PM_SETTLEMENT_MS, 16 * 3_600 * 1_000);
+    }
+
+    // Compile-time guard: the μs and ms variants must agree under a
+    // 1_000-factor rescale. Surfaces any future drift as a build
+    // break instead of a runtime failure.
+    const _: () = {
+        assert!(OPTION_PM_SETTLEMENT_US == (OPTION_PM_SETTLEMENT_MS as i64) * 1_000);
+    };
+
+    #[test]
+    fn pm_settlement_constant_resolves_through_class_level_override() {
+        // The OptionsCboeC1 class-level override should equal the
+        // public constant, confirming the constant is the single
+        // source of truth for the protocol fact.
+        assert_eq!(
+            TradingClass::OptionsCboeC1.class_level_last_trading_day_close_us(),
+            Some(OPTION_PM_SETTLEMENT_US),
+        );
     }
 }
