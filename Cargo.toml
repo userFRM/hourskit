@@ -43,8 +43,8 @@ futures = "0.3"
 sha2 = "0.10"
 
 # ── Parquet / Arrow ──
-arrow = { version = "54", default-features = false, features = ["csv"] }
-parquet = { version = "54", default-features = false, features = ["snap", "zstd", "arrow"] }
+arrow = { version = "58", default-features = false, features = ["csv"] }
+parquet = { version = "58", default-features = false, features = ["snap", "zstd", "arrow"] }
 
 # ── Macros ──
 # Maintained drop-in for the archived `paste` crate (RUSTSEC-2024-0436).
