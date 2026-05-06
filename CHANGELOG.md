@@ -7,6 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- `hourskit::time` module exporting day-length constants in canonical
+  integer units: `MS_PER_DAY: i32 = 86_400_000`,
+  `SECONDS_PER_DAY: i32 = 86_400`, `MIN_PER_DAY: i32 = 1_440`. Used as
+  the upper bound on FPSS ms-of-day stamps and as the "full day"
+  multiplier inside minute-precision time-to-expiration walks. Removes
+  duplicated `const MS_PER_DAY: i32 = 86_400_000;` declarations in
+  downstream analytics crates.
+
 ## [0.3.0] - 2026-05-05
 
 ### Added

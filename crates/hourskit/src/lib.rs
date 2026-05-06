@@ -97,6 +97,7 @@ pub mod error;
 pub(crate) mod fetcher;
 pub mod session;
 pub mod sources;
+pub mod time;
 
 // ── Top-level re-exports ──────────────────────────────────────────────────────
 
