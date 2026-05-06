@@ -108,7 +108,7 @@ proptest! {
     /// the parquet writer/reader.
     #[test]
     fn sessions_parquet_round_trip(
-        roots in proptest::collection::vec("[A-Z]{1,5}", 1..15),
+        symbols in proptest::collection::vec("[A-Z]{1,5}", 1..15),
         regular_open in 0i64..(8 * 3_600 * 1_000_000),
         delta in 1i64..(8 * 3_600 * 1_000_000),
     ) {
@@ -116,10 +116,10 @@ proptest! {
 
         let dir = tempfile::tempdir().expect("tempdir");
         let regular_close = regular_open + delta;
-        let mut rows: Vec<SessionInfo> = roots
+        let mut rows: Vec<SessionInfo> = symbols
             .iter()
             .map(|r| SessionInfo {
-                root: r.clone(),
+                symbol: r.clone(),
                 trading_class: TradingClass::EquityNasdaq,
                 regular: TimeWindow::new(regular_open, regular_close),
                 pre_market: None,
@@ -131,14 +131,14 @@ proptest! {
                 settlement: hourskit::Settlement::Pm,
             })
             .collect();
-        rows.sort_by(|a, b| a.root.cmp(&b.root));
-        rows.dedup_by(|a, b| a.root == b.root);
+        rows.sort_by(|a, b| a.symbol.cmp(&b.symbol));
+        rows.dedup_by(|a, b| a.symbol == b.symbol);
 
         write_sessions(dir.path(), &rows).expect("write");
         let back = read_sessions(&dir.path().join(FILE_SESSIONS)).expect("read");
         prop_assert_eq!(rows.len(), back.len());
         for (a, b) in rows.iter().zip(back.iter()) {
-            prop_assert_eq!(&a.root, &b.root);
+            prop_assert_eq!(&a.symbol, &b.symbol);
             prop_assert_eq!(a.regular.open_us(),  b.regular.open_us());
             prop_assert_eq!(a.regular.close_us(), b.regular.close_us());
             prop_assert_eq!(&a.trading_class, &b.trading_class);

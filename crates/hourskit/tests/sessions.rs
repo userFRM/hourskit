@@ -64,16 +64,16 @@ fn vix_xsp_rut_are_options_cboe_c1_with_curb_and_gth() {
     set_repo_data_dir();
     // VIX, XSP, RUT, MRUT, NDX, OEX, XEO, DJX, MNX are the cash-settled
     // index/volatility entries on the authoritative extended-trading roster.
-    for root in [
+    for symbol in [
         "VIX", "XSP", "RUT", "MRUT", "NDX", "OEX", "XEO", "DJX", "MNX",
     ] {
-        let info = bundled::session(root)
+        let info = bundled::session(symbol)
             .expect("data/sessions.parquet must be present")
-            .unwrap_or_else(|| panic!("{root} in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} in seed data"));
         assert_eq!(info.trading_class, TradingClass::OptionsCboeC1);
-        assert!(info.curb.is_some(), "{root} should have a Curb window");
-        assert!(info.gth.is_some(), "{root} should have a GTH window");
-        assert!(info.gth_overnight, "{root} GTH wraps midnight");
+        assert!(info.curb.is_some(), "{symbol} should have a Curb window");
+        assert!(info.gth.is_some(), "{symbol} should have a GTH window");
+        assert!(info.gth_overnight, "{symbol} GTH wraps midnight");
     }
 }
 
@@ -103,7 +103,7 @@ fn qqq_resolves_to_some_session() {
     let info = bundled::session("QQQ")
         .expect("data/sessions.parquet must be present")
         .expect("QQQ in seed data");
-    // QQQ has rows for multiple classes — `session(root)` returns one of them.
+    // QQQ has rows for multiple classes — `session(symbol)` returns one of them.
     assert_eq!(info.regular.open_us(), hm_us(9, 30));
 }
 
@@ -140,9 +140,10 @@ fn cboe_bzx_edgx_pre_market_starts_at_0230() {
 }
 
 #[test]
-fn unknown_root_returns_none() {
+fn unknown_symbol_returns_none() {
     set_repo_data_dir();
-    let result = bundled::session("ZZNOTAREALROOT").expect("data/sessions.parquet must be present");
+    let result =
+        bundled::session("ZZNOTAREALSYMBOL").expect("data/sessions.parquet must be present");
     assert!(result.is_none());
 }
 

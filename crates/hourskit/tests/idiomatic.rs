@@ -63,7 +63,7 @@ fn every_value_type_displays_or_debugs() {
 #[test]
 fn error_variants_all_have_non_empty_display() {
     let cases: &[Error] = &[
-        Error::UnknownRoot("X".into()),
+        Error::UnknownSymbol("X".into()),
         Error::Source("y".into()),
         Error::Parquet("z".into()),
         Error::SchemaMismatch {

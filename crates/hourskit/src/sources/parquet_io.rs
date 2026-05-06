@@ -33,8 +33,13 @@
 //! ```
 //!
 //! `settlement_am_open_us` encodes the AM SET print microsecond-of-day
-//! for [`Settlement::AmOpen`] rows (currently the SPX root family at
+//! for [`Settlement::AmOpen`] rows (currently the SPX symbol family at
 //! 09:30 ET); NULL maps to [`Settlement::Pm`].
+//!
+//! The `root` column name is the on-disk wire-format identifier and is
+//! preserved for storage-format stability; the in-memory
+//! [`SessionInfo::symbol`] field carries the same value through the
+//! Rust API.
 //!
 //! Compression: ZSTD level 3. Row group size: 10 000 rows.
 
@@ -194,10 +199,10 @@ fn cast_bool_col<'a>(
 
 /// Write the unified session table to `data_dir/sessions.parquet`.
 ///
-/// Rows are normalised to upper-case roots and sorted ascending. Duplicate
-/// `(root, trading_class)` pairs are NOT deduplicated by this routine — the
+/// Rows are normalised to upper-case symbols and sorted ascending. Duplicate
+/// `(symbol, trading_class)` pairs are NOT deduplicated by this routine — the
 /// seed-data layer owns that decision because two distinct trading classes
-/// can legitimately share a root (e.g. SPY equity vs. SPY options on
+/// can legitimately share a symbol (e.g. SPY equity vs. SPY options on
 /// different exchanges).
 ///
 /// # Errors
@@ -211,17 +216,19 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
         .iter()
         .cloned()
         .map(|mut r| {
-            r.root = r.root.to_ascii_uppercase();
+            r.symbol = r.symbol.to_ascii_uppercase();
             r
         })
         .collect();
     sorted.sort_by(|a, b| {
-        a.root
-            .cmp(&b.root)
+        a.symbol
+            .cmp(&b.symbol)
             .then_with(|| a.trading_class.as_wire().cmp(&b.trading_class.as_wire()))
     });
 
-    let roots: StringArray = sorted.iter().map(|r| Some(r.root.as_str())).collect();
+    // The on-disk parquet column is named `root` (storage-format wire identifier);
+    // the in-memory field is `symbol`.
+    let symbols: StringArray = sorted.iter().map(|r| Some(r.symbol.as_str())).collect();
     let classes: StringArray = sorted
         .iter()
         .map(|r| Some(r.trading_class.as_wire()))
@@ -278,7 +285,7 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
     let batch = RecordBatch::try_new(
         Arc::clone(&schema),
         vec![
-            Arc::new(roots),
+            Arc::new(symbols),
             Arc::new(classes),
             Arc::new(regular_open),
             Arc::new(regular_close),
@@ -328,7 +335,9 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
     let mut rows = Vec::new();
     for batch in reader {
         let batch = batch?;
-        let roots = cast_string_col(&batch, FILE_SESSIONS, 0, "root")?;
+        // Column 0 is the on-disk wire-format `root` column; values feed
+        // [`SessionInfo::symbol`] in memory.
+        let symbols = cast_string_col(&batch, FILE_SESSIONS, 0, "root")?;
         let classes = cast_string_col(&batch, FILE_SESSIONS, 1, "trading_class")?;
         let regular_open = cast_i64_col(&batch, FILE_SESSIONS, 2, "regular_open_us")?;
         let regular_close = cast_i64_col(&batch, FILE_SESSIONS, 3, "regular_close_us")?;
@@ -346,7 +355,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
         let settlement_am_open = cast_i64_col(&batch, FILE_SESSIONS, 14, "settlement_am_open_us")?;
 
         for i in 0..batch.num_rows() {
-            if roots.is_null(i)
+            if symbols.is_null(i)
                 || classes.is_null(i)
                 || regular_open.is_null(i)
                 || regular_close.is_null(i)
@@ -355,7 +364,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
                     "null cell in required column at row {i} in {FILE_SESSIONS}"
                 )));
             }
-            let row_id = roots.value(i).to_string();
+            let row_id = symbols.value(i).to_string();
             let pre = optional_window_strict(pre_open, pre_close, i, &row_id, "pre_market")?;
             let post = optional_window_strict(post_open, post_close, i, &row_id, "post_market")?;
             let curb = optional_window_strict(curb_open, curb_close, i, &row_id, "curb")?;
@@ -387,7 +396,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
             };
 
             rows.push(SessionInfo {
-                root: roots.value(i).to_string(),
+                symbol: symbols.value(i).to_string(),
                 trading_class: TradingClass::from_wire(classes.value(i)),
                 regular: TimeWindow::new(regular_open.value(i), regular_close.value(i)),
                 pre_market: pre,
@@ -401,8 +410,8 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
         }
     }
     rows.sort_by(|a, b| {
-        a.root
-            .cmp(&b.root)
+        a.symbol
+            .cmp(&b.symbol)
             .then_with(|| a.trading_class.as_wire().cmp(&b.trading_class.as_wire()))
     });
     Ok(rows)
@@ -452,7 +461,7 @@ mod tests {
     fn fixture_rows() -> Vec<SessionInfo> {
         vec![
             SessionInfo {
-                root: "SPX".into(),
+                symbol: "SPX".into(),
                 trading_class: TradingClass::OptionsCboeC1,
                 regular: TimeWindow::from_clock_et(9, 30, 16, 15),
                 pre_market: None,
@@ -469,7 +478,7 @@ mod tests {
                 },
             },
             SessionInfo {
-                root: "SPXW".into(),
+                symbol: "SPXW".into(),
                 trading_class: TradingClass::OptionsCboeC1,
                 regular: TimeWindow::from_clock_et(9, 30, 16, 15),
                 pre_market: None,
@@ -484,7 +493,7 @@ mod tests {
                 settlement: Settlement::Pm,
             },
             SessionInfo {
-                root: "AAPL".into(),
+                symbol: "AAPL".into(),
                 trading_class: TradingClass::EquityNasdaq,
                 regular: TimeWindow::from_clock_et(9, 30, 16, 0),
                 pre_market: Some(TimeWindow::from_clock_et(4, 0, 9, 30)),
@@ -513,14 +522,14 @@ mod tests {
         assert_eq!(back.len(), 3);
         assert!(back
             .iter()
-            .any(|r| r.root == "AAPL" && r.pre_market.is_some()));
+            .any(|r| r.symbol == "AAPL" && r.pre_market.is_some()));
         assert!(back
             .iter()
-            .any(|r| r.root == "SPX" && r.curb.is_some() && r.gth_overnight));
+            .any(|r| r.symbol == "SPX" && r.curb.is_some() && r.gth_overnight));
         // SPXW carries the last-trading-day close override; SPX does not.
         let spx = back
             .iter()
-            .find(|r| r.root == "SPX")
+            .find(|r| r.symbol == "SPX")
             .expect("SPX in fixture");
         assert_eq!(spx.last_trading_day_close_us, None);
         // SPX carries the AM SET settlement convention; AmOpen at 09:30 ET.
@@ -532,7 +541,7 @@ mod tests {
         );
         let spxw = back
             .iter()
-            .find(|r| r.root == "SPXW")
+            .find(|r| r.symbol == "SPXW")
             .expect("SPXW in fixture");
         assert_eq!(
             spxw.last_trading_day_close_us,
@@ -542,7 +551,7 @@ mod tests {
         assert_eq!(spxw.settlement, Settlement::Pm);
         let aapl = back
             .iter()
-            .find(|r| r.root == "AAPL")
+            .find(|r| r.symbol == "AAPL")
             .expect("AAPL in fixture");
         assert_eq!(aapl.settlement, Settlement::Pm);
         Ok(())

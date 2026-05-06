@@ -123,29 +123,29 @@ fn extended_trading_roster_all_close_at_1615() {
         82,
         "roster size — counted from the authoritative source"
     );
-    // We probe both possible class targets — index/volatility roots that
+    // We probe both possible class targets — index/volatility symbols that
     // get the C1 class, ETFs and equity-options that get BzxC2Edgx — so the
     // assertion is "the row exists under EXACTLY ONE of the two options
     // classes".
-    for root in ROSTER {
+    for symbol in ROSTER {
         let c1 =
-            bundled::session_for_class(root, &TradingClass::OptionsCboeC1).expect("seed present");
-        let other = bundled::session_for_class(root, &TradingClass::OptionsCboeBzxC2Edgx)
+            bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1).expect("seed present");
+        let other = bundled::session_for_class(symbol, &TradingClass::OptionsCboeBzxC2Edgx)
             .expect("seed present");
         let info = c1
             .or(other)
-            .unwrap_or_else(|| panic!("{root} not in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} not in seed data"));
         assert_eq!(
             info.regular.close_us(),
             hm_us(16, 15),
-            "{root} regular close should be 16:15 ET"
+            "{symbol} regular close should be 16:15 ET"
         );
-        assert!(info.is_options(), "{root} should be an options class");
+        assert!(info.is_options(), "{symbol} should be an options class");
     }
 }
 
 #[test]
-fn spx_pm_and_xsp_am_variants_round_trip_as_literal_roots() {
+fn spx_pm_and_xsp_am_variants_round_trip_as_literal_symbols() {
     set_repo_data_dir();
     let pm = bundled::session("SPX (PM Expiration)")
         .expect("seed data present")
@@ -181,7 +181,7 @@ fn opra_gth_open_is_2015_unchanged() {
     assert_eq!(gth.open_us(), hm_us(20, 15));
 }
 
-/// `c1_roots()` and `EXTENDED_TRADING_ROSTER` agree on every member of the
+/// `C1_SYMBOLS` and `EXTENDED_TRADING_ROSTER` agree on every member of the
 /// C1 subset.
 #[test]
 fn cash_settled_index_classes_get_curb_and_gth() {
@@ -200,13 +200,13 @@ fn cash_settled_index_classes_get_curb_and_gth() {
         "DJX",
         "MNX",
     ];
-    for root in c1_subset {
-        let info = bundled::session(root)
+    for symbol in c1_subset {
+        let info = bundled::session(symbol)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} not in seed data"));
         assert_eq!(info.trading_class, TradingClass::OptionsCboeC1);
-        assert!(info.curb.is_some(), "{root} should have Curb session");
-        assert!(info.gth.is_some(), "{root} should have GTH session");
+        assert!(info.curb.is_some(), "{symbol} should have Curb session");
+        assert!(info.gth.is_some(), "{symbol} should have GTH session");
     }
 }
 
@@ -220,10 +220,10 @@ fn etfs_on_the_roster_get_options_cboe_bzx_c2_edgx() {
     let etfs = [
         "DIA", "QQQ", "SPY", "IWM", "EEM", "EFA", "XLF", "XLE", "XLK",
     ];
-    for root in etfs {
-        let info = bundled::session_for_class(root, &TradingClass::OptionsCboeBzxC2Edgx)
+    for symbol in etfs {
+        let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeBzxC2Edgx)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} OptionsCboeBzxC2Edgx not found"));
+            .unwrap_or_else(|| panic!("{symbol} OptionsCboeBzxC2Edgx not found"));
         assert_eq!(info.regular.close_us(), hm_us(16, 15));
         assert!(info.curb.is_none());
         assert!(info.gth.is_none());

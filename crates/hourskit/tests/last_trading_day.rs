@@ -9,8 +9,8 @@
 //! Rule 5.1(b)(2)(C) additionally covers Cboe S&P 500 AM/PM Basis
 //! options, every Index Option with Nonstandard Expirations (Weeklys,
 //! EOMs, Monthly Series, Quarterly Series, QIXs), and the SPX / XSP /
-//! SPEQF / SPEQX / MRUT p.m.-settled named roots. The kit encodes the
-//! named subset per-root and the open-ended Nonstandard-Expirations
+//! SPEQF / SPEQX / MRUT p.m.-settled named symbols. The kit encodes the
+//! named subset per-symbol and the open-ended Nonstandard-Expirations
 //! catch-all at the [`TradingClass`] level.
 
 #![cfg(feature = "parquet-loader")]
@@ -30,43 +30,43 @@ fn set_repo_data_dir() {
     bundled::invalidate_cache();
 }
 
-const SEVEN_EARLY_CLOSE_ROOTS: &[&str] = &["NDXP", "RUTW", "MRUT", "SPXW", "XSP", "OEX", "XEO"];
+const SEVEN_EARLY_CLOSE_SYMBOLS: &[&str] = &["NDXP", "RUTW", "MRUT", "SPXW", "XSP", "OEX", "XEO"];
 
 const EARLY_CLOSE_US: i64 = 57_600_000_000; // 16:00 ET
 const REGULAR_CLOSE_US: i64 = 58_500_000_000; // 16:15 ET
 
 #[test]
-fn last_trading_day_exception_applies_to_seven_roots() {
+fn last_trading_day_exception_applies_to_seven_symbols() {
     set_repo_data_dir();
-    for root in SEVEN_EARLY_CLOSE_ROOTS {
-        let info = bundled::session_for_class(root, &TradingClass::OptionsCboeC1)
+    for symbol in SEVEN_EARLY_CLOSE_SYMBOLS {
+        let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not found in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} not found in seed data"));
         assert_eq!(
             info.last_trading_day_close_us,
             Some(EARLY_CLOSE_US),
-            "{root} should carry the 16:00 ET last-trading-day override"
+            "{symbol} should carry the 16:00 ET last-trading-day override"
         );
     }
 }
 
 #[test]
-fn per_root_override_field_is_none_for_unenumerated_roots() {
+fn per_symbol_override_field_is_none_for_unenumerated_symbols() {
     set_repo_data_dir();
-    // The PER-ROOT override field is populated only for roots explicitly
+    // The PER-SYMBOL override field is populated only for symbols explicitly
     // named in CBOE Rule 5.1(b)(2)(C) and the Firstrade quote. SPX / NDX
     // / RUT / VIX (cash-settled but not in the named subset), SPY / QQQ
-    // (ETF options) all carry None on the per-root field. The
+    // (ETF options) all carry None on the per-symbol field. The
     // OptionsCboeC1 entries among them still resolve to 16:00 ET via
     // the class-level fallback — see
-    // [`spx_class_level_fallback_kicks_in_when_per_root_override_absent`].
-    for root in ["SPX", "NDX", "RUT", "VIX", "SPY", "QQQ"] {
-        let info = bundled::session(root)
+    // [`spx_class_level_fallback_kicks_in_when_per_symbol_override_absent`].
+    for symbol in ["SPX", "NDX", "RUT", "VIX", "SPY", "QQQ"] {
+        let info = bundled::session(symbol)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not found in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} not found in seed data"));
         assert_eq!(
             info.last_trading_day_close_us, None,
-            "{root} must not carry an EXPLICIT per-root override"
+            "{symbol} must not carry an EXPLICIT per-symbol override"
         );
     }
 }
@@ -103,7 +103,7 @@ fn effective_close_us_returns_regular_close_on_non_expiry_day() {
 fn effective_close_us_returns_regular_close_for_unaffected_classes() {
     set_repo_data_dir();
     // SPY OptionsCboeBzxC2Edgx is NOT OptionsCboeC1, so neither the
-    // per-root override nor the class-level Rule 5.1(b)(2)(C) fallback
+    // per-symbol override nor the class-level Rule 5.1(b)(2)(C) fallback
     // applies. Effective close stays at the regular 16:15 ET cutoff
     // even when the contract expires today.
     let info = bundled::session_for_class("SPY", &TradingClass::OptionsCboeBzxC2Edgx)
@@ -115,9 +115,9 @@ fn effective_close_us_returns_regular_close_for_unaffected_classes() {
 }
 
 #[test]
-fn spx_class_level_fallback_kicks_in_when_per_root_override_absent() {
+fn spx_class_level_fallback_kicks_in_when_per_symbol_override_absent() {
     set_repo_data_dir();
-    // SPX is OptionsCboeC1 but lacks a per-root override (Rule
+    // SPX is OptionsCboeC1 but lacks a per-symbol override (Rule
     // 5.1(b)(2)(C) names "SPX p.m.-settled" specifically; AM-settled
     // SPX continues to 16:15 in practice but the rule's open-ended
     // Nonstandard-Expirations bullet sweeps it in too). Verify the
@@ -139,33 +139,33 @@ fn spx_class_level_fallback_kicks_in_when_per_root_override_absent() {
 #[test]
 fn effective_close_us_xsp_oex_xeo_round_trip() {
     set_repo_data_dir();
-    // The remaining roots on the seven-root list must each early-close on
-    // their own expiry day. Pin the class so every lookup hits the
+    // The remaining symbols on the seven-symbol list must each early-close
+    // on their own expiry day. Pin the class so every lookup hits the
     // OptionsCboeC1 row carrying the override.
-    for root in ["XSP", "OEX", "XEO", "MRUT"] {
-        let info = bundled::session_for_class(root, &TradingClass::OptionsCboeC1)
+    for symbol in ["XSP", "OEX", "XEO", "MRUT"] {
+        let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not found"));
+            .unwrap_or_else(|| panic!("{symbol} not found"));
         let day = 20_260_519;
         assert_eq!(
             info.effective_close_us(day, day),
             EARLY_CLOSE_US,
-            "{root} should early-close on contract expiry day"
+            "{symbol} should early-close on contract expiry day"
         );
     }
 }
 
 // ── Class-level fallback (Rule 5.1(b)(2)(C) catch-all) ──────────────────────
 
-/// Synthesize a SessionInfo with `OptionsCboeC1` and no per-root
+/// Synthesize a SessionInfo with `OptionsCboeC1` and no per-symbol
 /// override. The class-level fallback should still resolve the early
 /// close on the contract's expiry day. This covers the rule's
 /// open-ended "Index Options with Nonstandard Expirations" bullet for
-/// any future Cboe C1 root the kit doesn't yet enumerate per-root.
+/// any future Cboe C1 symbol the kit doesn't yet enumerate per-symbol.
 #[test]
 fn class_level_fallback_applies_to_all_options_cboe_c1_without_explicit_override() {
     let synthetic = SessionInfo {
-        root: "FUTUREC1WEEKLY".into(),
+        symbol: "FUTUREC1WEEKLY".into(),
         trading_class: TradingClass::OptionsCboeC1,
         regular: TimeWindow::from_clock_et(9, 30, 16, 15),
         pre_market: None,
@@ -176,7 +176,7 @@ fn class_level_fallback_applies_to_all_options_cboe_c1_without_explicit_override
         last_trading_day_close_us: None,
         settlement: hourskit::Settlement::Pm,
     };
-    // No per-root override populated; class-level fallback must trigger.
+    // No per-symbol override populated; class-level fallback must trigger.
     assert_eq!(
         synthetic.effective_close_us(20_260_516, 20_260_516),
         EARLY_CLOSE_US,
@@ -190,13 +190,13 @@ fn class_level_fallback_applies_to_all_options_cboe_c1_without_explicit_override
 }
 
 #[test]
-fn per_root_override_takes_precedence_over_class_level_fallback() {
+fn per_symbol_override_takes_precedence_over_class_level_fallback() {
     // Hypothetical 15:58:20 ET = 57_500_000_000 us — chosen to be
     // distinguishable from the canonical 16:00 ET = 57_600_000_000 us
     // class-level fallback so we can prove which branch fires first.
-    const HYPOTHETICAL_PER_ROOT_OVERRIDE: i64 = 57_500_000_000;
+    const HYPOTHETICAL_PER_SYMBOL_OVERRIDE: i64 = 57_500_000_000;
     let synthetic = SessionInfo {
-        root: "EXPLICITROOT".into(),
+        symbol: "EXPLICITSYMBOL".into(),
         trading_class: TradingClass::OptionsCboeC1,
         regular: TimeWindow::from_clock_et(9, 30, 16, 15),
         pre_market: None,
@@ -204,14 +204,14 @@ fn per_root_override_takes_precedence_over_class_level_fallback() {
         curb: None,
         gth: None,
         gth_overnight: false,
-        last_trading_day_close_us: Some(HYPOTHETICAL_PER_ROOT_OVERRIDE),
+        last_trading_day_close_us: Some(HYPOTHETICAL_PER_SYMBOL_OVERRIDE),
         settlement: hourskit::Settlement::Pm,
     };
     let day = 20_260_516;
     assert_eq!(
         synthetic.effective_close_us(day, day),
-        HYPOTHETICAL_PER_ROOT_OVERRIDE,
-        "per-root override must win over the class-level fallback"
+        HYPOTHETICAL_PER_SYMBOL_OVERRIDE,
+        "per-symbol override must win over the class-level fallback"
     );
 }
 
@@ -269,14 +269,14 @@ fn options_cboe_c1_class_level_fallback_is_1600_et() {
 #[test]
 fn spxpm_speqf_speqx_explicitly_seeded_with_override() {
     set_repo_data_dir();
-    for root in ["SPXPM", "SPEQF", "SPEQX", "XSP (PM Expiration)"] {
-        let info = bundled::session_for_class(root, &TradingClass::OptionsCboeC1)
+    for symbol in ["SPXPM", "SPEQF", "SPEQX", "XSP (PM Expiration)"] {
+        let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not found in seed data"));
+            .unwrap_or_else(|| panic!("{symbol} not found in seed data"));
         assert_eq!(
             info.last_trading_day_close_us,
             Some(EARLY_CLOSE_US),
-            "{root} should carry the explicit per-root last-trading-day override"
+            "{symbol} should carry the explicit per-symbol last-trading-day override"
         );
         // Sanity: the explicit override and the class-level fallback agree.
         let day = 20_260_516;
@@ -286,13 +286,13 @@ fn spxpm_speqf_speqx_explicitly_seeded_with_override() {
 
 #[test]
 fn rule_full_named_roster_is_complete() {
-    // Verify every CBOE Rule 5.1(b)(2)(C) explicitly-named root resolves
-    // to the early close via either the per-root override or the
+    // Verify every CBOE Rule 5.1(b)(2)(C) explicitly-named symbol resolves
+    // to the early close via either the per-symbol override or the
     // class-level fallback. NB: "Cboe S&P 500 AM/PM Basis options" is
     // covered solely by the class-level fallback and has no dedicated
-    // root string in the seed data.
+    // symbol string in the seed data.
     set_repo_data_dir();
-    for root in [
+    for symbol in [
         // Firstrade-quoted:
         "NDXP",
         "RUTW",
@@ -305,18 +305,18 @@ fn rule_full_named_roster_is_complete() {
         "SPXPM",
         "SPEQF",
         "SPEQX",
-        // Literal-root variants:
+        // Literal-symbol variants:
         "SPX (PM Expiration)",
         "XSP (PM Expiration)",
     ] {
-        let info = bundled::session_for_class(root, &TradingClass::OptionsCboeC1)
+        let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1)
             .expect("seed data present")
-            .unwrap_or_else(|| panic!("{root} not found"));
+            .unwrap_or_else(|| panic!("{symbol} not found"));
         let day = 20_260_519;
         assert_eq!(
             info.effective_close_us(day, day),
             EARLY_CLOSE_US,
-            "{root} must early-close on contract expiry day per Rule 5.1(b)(2)(C)"
+            "{symbol} must early-close on contract expiry day per Rule 5.1(b)(2)(C)"
         );
     }
 }
@@ -339,10 +339,10 @@ proptest! {
     ) {
         set_repo_data_dir();
         let exp_date = event_date.saturating_add(exp_offset);
-        for root in SEVEN_EARLY_CLOSE_ROOTS {
-            let info = bundled::session_for_class(root, &TradingClass::OptionsCboeC1)
+        for symbol in SEVEN_EARLY_CLOSE_SYMBOLS {
+            let info = bundled::session_for_class(symbol, &TradingClass::OptionsCboeC1)
                 .expect("seed data present")
-                .unwrap_or_else(|| panic!("{root} not found"));
+                .unwrap_or_else(|| panic!("{symbol} not found"));
             let close = info.effective_close_us(event_date, exp_date);
             prop_assert!(close <= info.regular.close_us());
             if event_date == exp_date {

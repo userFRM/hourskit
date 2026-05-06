@@ -117,9 +117,9 @@ pub fn invalidate_cache() {
 // Public API
 // ---------------------------------------------------------------------------
 
-/// Look up the session for `root`, returning `None` if no row matches.
+/// Look up the session for `symbol`, returning `None` if no row matches.
 ///
-/// Lookup is case-insensitive on the root. If multiple rows share a root
+/// Lookup is case-insensitive on the symbol. If multiple rows share a symbol
 /// (e.g. SPY listed as both options and equity), the row whose
 /// [`TradingClass::preference_rank`] is lowest wins. Use
 /// [`session_for_class`] to pin a specific class explicitly.
@@ -128,28 +128,31 @@ pub fn invalidate_cache() {
 ///
 /// Returns [`Error`] if the bundled parquet file is missing or fails to
 /// read.
-pub fn session(root: &str) -> Result<Option<SessionInfo>> {
-    let needle = root.to_ascii_uppercase();
+pub fn session(symbol: &str) -> Result<Option<SessionInfo>> {
+    let needle = symbol.to_ascii_uppercase();
     let rows = load_or_cached()?;
     Ok(rows
         .into_iter()
-        .filter(|r| r.root == needle)
+        .filter(|r| r.symbol == needle)
         .min_by_key(|r| r.trading_class.preference_rank()))
 }
 
-/// Look up the session for a specific `(root, trading_class)` pair.
+/// Look up the session for a specific `(symbol, trading_class)` pair.
 ///
 /// # Errors
 ///
 /// Returns [`Error`] if the bundled parquet file is missing or fails to
 /// read.
-pub fn session_for_class(root: &str, trading_class: &TradingClass) -> Result<Option<SessionInfo>> {
-    let needle = root.to_ascii_uppercase();
+pub fn session_for_class(
+    symbol: &str,
+    trading_class: &TradingClass,
+) -> Result<Option<SessionInfo>> {
+    let needle = symbol.to_ascii_uppercase();
     let target_wire = trading_class.as_wire();
     let rows = load_or_cached()?;
     Ok(rows
         .into_iter()
-        .find(|r| r.root == needle && r.trading_class.as_wire() == target_wire))
+        .find(|r| r.symbol == needle && r.trading_class.as_wire() == target_wire))
 }
 
 /// Read the full session table.

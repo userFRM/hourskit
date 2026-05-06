@@ -7,6 +7,38 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-07
+
+### Changed
+
+- **BREAKING**: renamed the `root` identifier to `symbol` across the
+  public API to align with upstream `userFRM/thetadx`'s
+  `Contract.symbol` field. The on-disk `data/sessions.parquet` schema
+  preserves the wire-format `root` column name; only the in-memory
+  Rust type and parameter names move.
+
+  Migration map:
+
+  | Before | After |
+  |---|---|
+  | `SessionInfo.root: String` | `SessionInfo.symbol: String` |
+  | `Hourskit::session(root)` | `Hourskit::session(symbol)` |
+  | `Hourskit::session_for_class(root, class)` | `Hourskit::session_for_class(symbol, class)` |
+  | `Hourskit::session_blocking(root)` | `Hourskit::session_blocking(symbol)` |
+  | `Hourskit::session_for_class_blocking(root, class)` | `Hourskit::session_for_class_blocking(symbol, class)` |
+  | `hourskit::session(root)` (free fn) | `hourskit::session(symbol)` |
+  | `hourskit::session_blocking(root)` (free fn) | `hourskit::session_blocking(symbol)` |
+  | `hourskit::sources::bundled::session(root)` | `hourskit::sources::bundled::session(symbol)` |
+  | `hourskit::sources::bundled::session_for_class(root, class)` | `hourskit::sources::bundled::session_for_class(symbol, class)` |
+  | `Error::UnknownRoot(String)` | `Error::UnknownSymbol(String)` |
+  | `hourskit-cli session --root SPX` | `hourskit-cli session --symbol SPX` |
+
+  The wire-format `"root"` parquet column name and the
+  `data/sessions.parquet` byte layout are unchanged, so cached files
+  and downstream parquet consumers continue to work without
+  re-fetching. Only Rust callers need to update field/parameter names.
+  Closes [#19](https://github.com/userFRM/hourskit/issues/19).
+
 ## [0.4.0] - 2026-05-05
 
 ### Added

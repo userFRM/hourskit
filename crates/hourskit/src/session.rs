@@ -21,7 +21,7 @@
 //! // Construct directly when bypassing the bundled / fetched data plane.
 //! let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
 //! let info = SessionInfo {
-//!     root: "AAPL".into(),
+//!     symbol: "AAPL".into(),
 //!     trading_class: TradingClass::EquityNasdaq,
 //!     regular,
 //!     pre_market: Some(TimeWindow::from_clock_et(4, 0, 9, 30)),
@@ -215,7 +215,7 @@ impl TradingClass {
         }
     }
 
-    /// Preference rank used to disambiguate when one root spans multiple
+    /// Preference rank used to disambiguate when one symbol spans multiple
     /// classes (e.g. SPY listed as both equity and options).
     ///
     /// Lower rank wins. The order is:
@@ -297,16 +297,16 @@ impl TradingClass {
     /// The "Index Options with Nonstandard Expirations" bullet is
     /// open-ended — Cboe regularly adds new Weekly / EOM / Monthly /
     /// Quarterly series to the C1 ladder. Encoding only the named
-    /// roots would silently miss every future addition. The class-level
-    /// fallback ensures that any [`Self::OptionsCboeC1`] root the kit
+    /// symbols would silently miss every future addition. The class-level
+    /// fallback ensures that any [`Self::OptionsCboeC1`] symbol the kit
     /// ships, present or future, gets the 16:00 ET last-trading-day
     /// cutoff without requiring a parquet refresh.
     ///
     /// # Resolution order
     ///
-    /// [`SessionInfo::effective_close_us`] consults the per-root
+    /// [`SessionInfo::effective_close_us`] consults the per-symbol
     /// override on the row first; this class-level fallback is only
-    /// considered when the per-root field is `None`.
+    /// considered when the per-symbol field is `None`.
     ///
     /// # Returns
     ///
@@ -361,16 +361,16 @@ const US_PER_DAY: i64 = 24 * US_PER_HOUR;
 /// 16:00 ET = `57_600_000_000` μs. Per CBOE Rule 5.1(b)(2)(C), every
 /// PM-settled cash-settled index option (NDXP, RUTW, MRUT, SPXW, XSP,
 /// OEX, XEO, plus the rule-named SPXPM / SPEQF / SPEQX and the
-/// literal-root SPX/XSP "(PM Expiration)" variants) closes at 16:00
+/// literal-symbol SPX/XSP "(PM Expiration)" variants) closes at 16:00
 /// ET on its last trading day; non-expiring contracts on the same
-/// root continue trading until the [`SessionInfo::regular`] close
+/// symbol continue trading until the [`SessionInfo::regular`] close
 /// (typically 16:15 ET on Cboe C1).
 ///
 /// Use this constant as a **bare protocol value** for fixtures and
 /// for callers that lack a [`SessionInfo`] in hand. Callers with
 /// session info should resolve through
 /// [`SessionInfo::settlement_cutoff_us`] /
-/// [`SessionInfo::effective_close_us`] so per-root overrides and
+/// [`SessionInfo::effective_close_us`] so per-symbol overrides and
 /// AM-settled SPX standard third-Friday rolls are honoured.
 ///
 /// # Example
@@ -626,12 +626,12 @@ impl std::fmt::Display for TimeWindow {
 /// the expiration day. For PM-settled contracts the cutoff is the
 /// option-trading session close ([`SessionInfo::effective_close_us`]
 /// — typically 16:00 ET on equity options or 16:15 ET on Cboe C1
-/// index options, modulated by the per-root last-trading-day rule on
+/// index options, modulated by the per-symbol last-trading-day rule on
 /// CBOE Rule 5.1(b)(2)(C) names). For AM-settled contracts the cutoff
 /// is the cash-equity open print time, typically 09:30 ET, embedded
 /// in the [`AmOpen`][Self::AmOpen] variant.
 ///
-/// The convention is per-(root, expiration). On `SessionInfo` the
+/// The convention is per-(symbol, expiration). On `SessionInfo` the
 /// stored value describes the contract family rule:
 /// [`Pm`][Self::Pm] always returns the PM cutoff, while
 /// [`AmOpen`][Self::AmOpen] returns the embedded AM open time on
@@ -665,7 +665,7 @@ pub enum Settlement {
     /// AM settlement — variance contribution terminates at
     /// `open_us_of_day` microseconds-of-day (ET) on expirations that
     /// match the SPX-standard third-Friday rule. Currently
-    /// populated only for the `SPX` root family at 09:30 ET; other
+    /// populated only for the `SPX` symbol family at 09:30 ET; other
     /// expirations on the same row fall back to PM via
     /// [`SessionInfo::settlement_cutoff_us`].
     AmOpen {
@@ -767,8 +767,8 @@ const fn day_of_week_yyyymmdd(yyyymmdd: i32) -> i32 {
 /// | `settlement` | settlement convention rule for the contract family ([`Settlement::Pm`] default; [`Settlement::AmOpen`] for SPX standard third-Friday) | SPX |
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionInfo {
-    /// Symbol root (uppercase) e.g. `"SPX"`, `"AAPL"`.
-    pub root: String,
+    /// Symbol (uppercase) e.g. `"SPX"`, `"AAPL"`.
+    pub symbol: String,
     /// Trading class — identifies which exchange-rule family produced the windows below.
     pub trading_class: TradingClass,
     /// Regular trading session window (always populated).
@@ -786,19 +786,19 @@ pub struct SessionInfo {
     /// current); `false` when it is the same calendar evening (e.g. Nasdaq
     /// EquityNasdaq Extended Session at 21:00 ET → 04:00 ET next morning).
     pub gth_overnight: bool,
-    /// Per-root cutoff override for cash-settled index options on their
+    /// Per-symbol cutoff override for cash-settled index options on their
     /// last trading day (CBOE Rule 5.1(b)(2)(C)).
     ///
     /// When `Some(close_us)`, contracts whose `exp_date == event_date`
     /// close at this value (typically `57_600_000_000` = 16:00 ET);
-    /// non-expiring contracts on the same root continue trading until
+    /// non-expiring contracts on the same symbol continue trading until
     /// [`regular.close_us`][TimeWindow::close_us] (typically 16:15 ET).
     ///
-    /// Populated for the explicitly-named roots in CBOE Rule 5.1(b)(2)(C)
+    /// Populated for the explicitly-named symbols in CBOE Rule 5.1(b)(2)(C)
     /// — `NDXP`, `RUTW`, `MRUT`, `SPXW`, `XSP`, `OEX`, `XEO`, plus the
     /// p.m.-settled `SPXPM` / `SPEQF` / `SPEQX` and the
-    /// `SPX (PM Expiration)` / `XSP (AM Expiration)` literal-root
-    /// variants. `None` for every other root.
+    /// `SPX (PM Expiration)` / `XSP (AM Expiration)` literal-symbol
+    /// variants. `None` for every other symbol.
     ///
     /// `None` does NOT mean "no last-trading-day cutoff" — the rule's
     /// open-ended "Index Options with Nonstandard Expirations" bullet
@@ -812,7 +812,7 @@ pub struct SessionInfo {
     ///
     /// Determines where variance contribution terminates on the
     /// expiration day. Default [`Settlement::Pm`] applies to every
-    /// product, with the exception of the `SPX` root, whose standard
+    /// product, with the exception of the `SPX` symbol, whose standard
     /// third-Friday-of-the-month expirations follow the AM SET print
     /// at 09:30 ET. Resolve a per-expiration cutoff via
     /// [`Self::settlement_cutoff_us`] rather than branching on this
@@ -883,15 +883,15 @@ impl SessionInfo {
     ///
     /// On the contract's last trading day (`event_date == exp_date`):
     ///
-    /// 1. **Per-root override** — if [`Self::last_trading_day_close_us`]
+    /// 1. **Per-symbol override** — if [`Self::last_trading_day_close_us`]
     ///    is `Some`, that value is returned. This is the highest-priority
-    ///    branch and lets seed data pin specific roots (e.g. SPXW,
+    ///    branch and lets seed data pin specific symbols (e.g. SPXW,
     ///    NDXP) at 16:00 ET regardless of the trading class.
-    /// 2. **Class-level fallback** — if the per-root override is `None`
+    /// 2. **Class-level fallback** — if the per-symbol override is `None`
     ///    but [`TradingClass::class_level_last_trading_day_close_us`]
     ///    returns `Some`, that value is returned. This carries the
     ///    open-ended "Index Options with Nonstandard Expirations"
-    ///    bullet of CBOE Rule 5.1(b)(2)(C) without requiring per-root
+    ///    bullet of CBOE Rule 5.1(b)(2)(C) without requiring per-symbol
     ///    enumeration.
     /// 3. **Regular close** — when both branches yield `None` (or the
     ///    contract is not expiring today), [`TimeWindow::close_us`] of
@@ -903,7 +903,7 @@ impl SessionInfo {
     /// non-expiring options will continue to trade until 4:15 pm ET."
     /// The full rule additionally covers Cboe S&P 500 AM/PM Basis
     /// options, Weeklys, EOMs, Monthly / Quarterly series, and the
-    /// p.m.-settled SPX / XSP / SPEQF / SPEQX / MRUT roots — see
+    /// p.m.-settled SPX / XSP / SPEQF / SPEQX / MRUT symbols — see
     /// [`TradingClass::class_level_last_trading_day_close_us`].
     ///
     /// # Examples
@@ -946,14 +946,14 @@ impl SessionInfo {
     /// 2. **PM fallback** — every other case routes through
     ///    [`Self::effective_close_us`] with
     ///    `event_date == exp_date == expiration_date`, returning the
-    ///    per-root last-trading-day override or the class-level
+    ///    per-symbol last-trading-day override or the class-level
     ///    fallback or the regular close, in that priority order.
     ///
     /// This is the function downstream volatility analytics should
     /// use to derive the time-to-expiry cutoff: it stays correct for
     /// SPXW (PM), SPX EOM (PM), every NDX / RUT / VIX expiration
     /// (PM), and SPX standard third-Friday (AM SET) without the
-    /// caller branching on root.
+    /// caller branching on symbol.
     ///
     /// # Examples
     ///
@@ -961,7 +961,7 @@ impl SessionInfo {
     /// use hourskit::{Settlement, SessionInfo, TimeWindow, TradingClass};
     /// const NINE_THIRTY_US: i64 = 9 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
     /// let mut spx = SessionInfo {
-    ///     root: "SPX".into(),
+    ///     symbol: "SPX".into(),
     ///     trading_class: TradingClass::OptionsCboeC1,
     ///     regular: TimeWindow::from_clock_et(9, 30, 16, 15),
     ///     pre_market: None,
@@ -1142,7 +1142,7 @@ mod tests {
     #[test]
     fn session_info_last_trading_picks_curb_when_present() {
         let info = SessionInfo {
-            root: "SPX".into(),
+            symbol: "SPX".into(),
             trading_class: TradingClass::OptionsCboeC1,
             regular: TimeWindow::from_clock_et(9, 30, 16, 15),
             pre_market: None,
@@ -1160,7 +1160,7 @@ mod tests {
     #[test]
     fn session_info_last_trading_picks_post_market_for_equity() {
         let info = SessionInfo {
-            root: "AAPL".into(),
+            symbol: "AAPL".into(),
             trading_class: TradingClass::EquityNasdaq,
             regular: TimeWindow::from_clock_et(9, 30, 16, 0),
             pre_market: Some(TimeWindow::from_clock_et(4, 0, 9, 30)),
@@ -1195,7 +1195,7 @@ mod tests {
 
     fn spx_session_with(settlement: Settlement) -> SessionInfo {
         SessionInfo {
-            root: "SPX".into(),
+            symbol: "SPX".into(),
             trading_class: TradingClass::OptionsCboeC1,
             regular: TimeWindow::from_clock_et(9, 30, 16, 15),
             pre_market: None,
@@ -1254,20 +1254,20 @@ mod tests {
     }
 
     #[test]
-    fn settlement_am_open_falls_back_to_per_root_override_when_present() {
-        // When the row carries an explicit per-root last-trading-day
+    fn settlement_am_open_falls_back_to_per_symbol_override_when_present() {
+        // When the row carries an explicit per-symbol last-trading-day
         // override, the PM branch returns that value (NOT the class
         // fallback or the regular close).
         let mut info = spx_session_with(Settlement::AmOpen {
             open_us_of_day: AM_SET_US,
         });
-        // Pin a per-root override at 16:30 ET (60_300_000_000 μs) to
+        // Pin a per-symbol override at 16:30 ET (60_300_000_000 μs) to
         // verify the priority ordering.
         let custom_pm_close = 16_i64 * 3_600 * 1_000_000 + 30 * 60 * 1_000_000;
         info.last_trading_day_close_us = Some(custom_pm_close);
-        // Non-third-Friday → per-root override.
+        // Non-third-Friday → per-symbol override.
         assert_eq!(info.settlement_cutoff_us(20_260_522), custom_pm_close);
-        // Third-Friday → AM SET trumps per-root override.
+        // Third-Friday → AM SET trumps per-symbol override.
         assert_eq!(info.settlement_cutoff_us(20_260_515), AM_SET_US);
     }
 
@@ -1276,7 +1276,7 @@ mod tests {
         // Strip the class-level override by using a non-C1 class so
         // the only PM source is `regular.close_us`.
         let info = SessionInfo {
-            root: "SPY".into(),
+            symbol: "SPY".into(),
             trading_class: TradingClass::EquityNyseArca,
             regular: TimeWindow::from_clock_et(9, 30, 16, 0),
             pre_market: None,
@@ -1294,11 +1294,11 @@ mod tests {
     #[test]
     fn settlement_pm_uses_regular_close_for_non_expiry_lookups() {
         // The doc-tested behaviour: SessionInfo with PM settlement
-        // and no per-root or class override returns the regular close
+        // and no per-symbol or class override returns the regular close
         // for the queried expiration day.
         let regular_close = C1_REGULAR_CLOSE_US;
         let info = SessionInfo {
-            root: "FAKEC1".into(),
+            symbol: "FAKEC1".into(),
             // OptionsCboeBzxC2Edgx has no class-level last-trading-
             // day override, so only the regular close applies.
             trading_class: TradingClass::OptionsCboeBzxC2Edgx,
