@@ -33,7 +33,7 @@ arrow = { workspace = true, optional = true }
 parquet = { workspace = true, optional = true }
 bytes = { workspace = true, optional = true }
 sha2.workspace = true
-directories = "5"
+directories = "6"
 tempfile = { version = "3", optional = true }
 
 [dev-dependencies]

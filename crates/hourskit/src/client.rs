@@ -149,7 +149,7 @@ impl Hourskit {
     /// `Duration::ZERO` to force every fetch to hit the network (useful in
     /// tests).
     #[must_use]
-    pub fn with_staleness_ceiling(mut self, ceiling: Duration) -> Self {
+    pub const fn with_staleness_ceiling(mut self, ceiling: Duration) -> Self {
         self.fetcher.set_staleness_ceiling(ceiling);
         self
     }

@@ -7,7 +7,7 @@
 ignore = [
     # `paste` (RUSTSEC-2024-0436) — archived/unmaintained, no CVE,
     # no runtime impact (proc-macro, compile-time only). Pulled in
-    # transitively by `parquet 54.x`, which is itself gated behind
+    # transitively by `parquet 58.x`, which is itself gated behind
     # the default-on `parquet-loader` feature. Consumers that want
     # to drop the transitive `paste` can disable the feature; the
     # tradeoff is they must construct `SessionInfo` values from
