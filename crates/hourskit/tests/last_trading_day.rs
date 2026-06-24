@@ -175,6 +175,7 @@ fn class_level_fallback_applies_to_all_options_cboe_c1_without_explicit_override
         gth_overnight: false,
         last_trading_day_close_us: None,
         settlement: hourskit::Settlement::Pm,
+        valid_from_yyyymmdd: None,
     };
     // No per-symbol override populated; class-level fallback must trigger.
     assert_eq!(
@@ -206,6 +207,7 @@ fn per_symbol_override_takes_precedence_over_class_level_fallback() {
         gth_overnight: false,
         last_trading_day_close_us: Some(HYPOTHETICAL_PER_SYMBOL_OVERRIDE),
         settlement: hourskit::Settlement::Pm,
+        valid_from_yyyymmdd: None,
     };
     let day = 20_260_516;
     assert_eq!(

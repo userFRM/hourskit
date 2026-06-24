@@ -135,6 +135,21 @@ pub async fn session(symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
     global_client().session(symbol).await
 }
 
+/// Look up the [`SessionInfo`] for `symbol` applicable on trading date
+/// `date` (`YYYYMMDD`) via the process-wide client.
+///
+/// Returns `Ok(None)` if no row matches. Resolves the effective-dated row
+/// per [`SessionInfo::valid_from_yyyymmdd`]: the greatest
+/// `valid_from_yyyymmdd <= date` (a `None` baseline always eligible).
+///
+/// # Errors
+///
+/// Propagates HTTP / parquet errors from the underlying fetcher.
+#[cfg(feature = "parquet-loader")]
+pub async fn session_on(symbol: impl AsRef<str>, date: i32) -> Result<Option<SessionInfo>> {
+    global_client().session_on(symbol, date).await
+}
+
 /// Blocking variant of [`session()`].
 ///
 /// # Errors
@@ -143,4 +158,14 @@ pub async fn session(symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
 #[cfg(feature = "parquet-loader")]
 pub fn session_blocking(symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
     global_client().session_blocking(symbol)
+}
+
+/// Blocking variant of [`session_on()`].
+///
+/// # Errors
+///
+/// Propagates HTTP / parquet errors from the underlying fetcher.
+#[cfg(feature = "parquet-loader")]
+pub fn session_on_blocking(symbol: impl AsRef<str>, date: i32) -> Result<Option<SessionInfo>> {
+    global_client().session_on_blocking(symbol, date)
 }

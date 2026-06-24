@@ -129,6 +129,7 @@ proptest! {
                 gth_overnight: false,
                 last_trading_day_close_us: None,
                 settlement: hourskit::Settlement::Pm,
+                valid_from_yyyymmdd: None,
             })
             .collect();
         rows.sort_by(|a, b| a.symbol.cmp(&b.symbol));

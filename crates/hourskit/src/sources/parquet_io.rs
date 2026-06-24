@@ -30,11 +30,17 @@
 //! gth_overnight              : Boolean              (nullable)
 //! last_trading_day_close_us  : Int64                (nullable)
 //! settlement_am_open_us      : Int64                (nullable)
+//! valid_from_yyyymmdd        : Int32                (nullable)
 //! ```
 //!
 //! `settlement_am_open_us` encodes the AM SET print microsecond-of-day
 //! for [`Settlement::AmOpen`] rows (currently the SPX symbol family at
 //! 09:30 ET); NULL maps to [`Settlement::Pm`].
+//!
+//! `valid_from_yyyymmdd` is the effective-dating column: NULL is the
+//! always-valid baseline row, an integer `YYYYMMDD` stages a row that
+//! only governs query dates on or after that trading date. See
+//! [`SessionInfo::valid_from_yyyymmdd`].
 //!
 //! The `root` column name is the on-disk wire-format identifier and is
 //! preserved for storage-format stability; the in-memory
@@ -43,7 +49,7 @@
 //!
 //! Compression: ZSTD level 3. Row group size: 10 000 rows.
 
-use arrow::array::{Array, BooleanArray, Int64Array, StringArray};
+use arrow::array::{Array, BooleanArray, Int32Array, Int64Array, StringArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
@@ -87,6 +93,7 @@ fn sessions_schema() -> SchemaRef {
         Field::new("gth_overnight", DataType::Boolean, true),
         Field::new("last_trading_day_close_us", DataType::Int64, true),
         Field::new("settlement_am_open_us", DataType::Int64, true),
+        Field::new("valid_from_yyyymmdd", DataType::Int32, true),
     ]))
 }
 
@@ -172,6 +179,23 @@ fn cast_i64_col<'a>(
         .ok_or_else(|| Error::SchemaMismatch {
             file: file.to_string(),
             expected: format!("{name}: Int64"),
+            found: format!("{name}: {:?}", batch.column(col).data_type()),
+        })
+}
+
+fn cast_i32_col<'a>(
+    batch: &'a RecordBatch,
+    file: &str,
+    col: usize,
+    name: &str,
+) -> Result<&'a Int32Array> {
+    batch
+        .column(col)
+        .as_any()
+        .downcast_ref::<Int32Array>()
+        .ok_or_else(|| Error::SchemaMismatch {
+            file: file.to_string(),
+            expected: format!("{name}: Int32"),
             found: format!("{name}: {:?}", batch.column(col).data_type()),
         })
 }
@@ -280,6 +304,7 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
             Settlement::Pm => None,
         })
         .collect();
+    let valid_from: Int32Array = sorted.iter().map(|r| r.valid_from_yyyymmdd).collect();
 
     let schema = sessions_schema();
     let batch = RecordBatch::try_new(
@@ -300,6 +325,7 @@ pub fn write_sessions(data_dir: &Path, rows: &[SessionInfo]) -> Result<()> {
             Arc::new(gth_overnight),
             Arc::new(last_trading_day_close),
             Arc::new(settlement_am_open),
+            Arc::new(valid_from),
         ],
     )?;
 
@@ -353,6 +379,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
         let last_trading_day_close =
             cast_i64_col(&batch, FILE_SESSIONS, 13, "last_trading_day_close_us")?;
         let settlement_am_open = cast_i64_col(&batch, FILE_SESSIONS, 14, "settlement_am_open_us")?;
+        let valid_from = cast_i32_col(&batch, FILE_SESSIONS, 15, "valid_from_yyyymmdd")?;
 
         for i in 0..batch.num_rows() {
             if symbols.is_null(i)
@@ -394,6 +421,11 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
                     open_us_of_day: settlement_am_open.value(i),
                 }
             };
+            let valid_from_yyyymmdd = if valid_from.is_null(i) {
+                None
+            } else {
+                Some(valid_from.value(i))
+            };
 
             rows.push(SessionInfo {
                 symbol: symbols.value(i).to_string(),
@@ -406,6 +438,7 @@ pub fn read_sessions(path: &Path) -> Result<Vec<SessionInfo>> {
                 gth_overnight: overnight,
                 last_trading_day_close_us,
                 settlement,
+                valid_from_yyyymmdd,
             });
         }
     }
@@ -476,6 +509,7 @@ mod tests {
                 settlement: Settlement::AmOpen {
                     open_us_of_day: AM_SET_US,
                 },
+                valid_from_yyyymmdd: None,
             },
             SessionInfo {
                 symbol: "SPXW".into(),
@@ -491,6 +525,7 @@ mod tests {
                 gth_overnight: true,
                 last_trading_day_close_us: Some(OPTION_PM_SETTLEMENT_US),
                 settlement: Settlement::Pm,
+                valid_from_yyyymmdd: None,
             },
             SessionInfo {
                 symbol: "AAPL".into(),
@@ -503,6 +538,23 @@ mod tests {
                 gth_overnight: true,
                 last_trading_day_close_us: None,
                 settlement: Settlement::Pm,
+                valid_from_yyyymmdd: None,
+            },
+            // Effective-dated future row for AAPL: same symbol + class as
+            // the baseline above, distinguished only by valid_from. Used to
+            // verify the column survives the parquet round-trip.
+            SessionInfo {
+                symbol: "AAPL".into(),
+                trading_class: TradingClass::EquityNasdaq,
+                regular: TimeWindow::from_clock_et(9, 30, 16, 0),
+                pre_market: Some(TimeWindow::from_clock_et(4, 0, 9, 30)),
+                post_market: Some(TimeWindow::from_clock_et(16, 0, 20, 0)),
+                curb: None,
+                gth: Some(TimeWindow::from_clock_et(21, 0, 4, 0)),
+                gth_overnight: true,
+                last_trading_day_close_us: None,
+                settlement: Settlement::Pm,
+                valid_from_yyyymmdd: Some(20_260_713),
             },
         ]
     }
@@ -519,10 +571,20 @@ mod tests {
         let rows = fixture_rows();
         write_sessions(dir.path(), &rows)?;
         let back = read_sessions(&dir.path().join(FILE_SESSIONS))?;
-        assert_eq!(back.len(), 3);
+        assert_eq!(back.len(), 4);
         assert!(back
             .iter()
             .any(|r| r.symbol == "AAPL" && r.pre_market.is_some()));
+        // The effective-dating column round-trips: AAPL has one baseline
+        // (None) row and one staged future (Some(20260713)) row.
+        let aapl_valid_from: Vec<Option<i32>> = back
+            .iter()
+            .filter(|r| r.symbol == "AAPL")
+            .map(|r| r.valid_from_yyyymmdd)
+            .collect();
+        assert_eq!(aapl_valid_from.len(), 2);
+        assert!(aapl_valid_from.contains(&None));
+        assert!(aapl_valid_from.contains(&Some(20_260_713)));
         assert!(back
             .iter()
             .any(|r| r.symbol == "SPX" && r.curb.is_some() && r.gth_overnight));
@@ -604,8 +666,10 @@ mod tests {
             Field::new("gth_overnight", DataType::Boolean, false),
             Field::new("last_trading_day_close_us", DataType::Int64, false),
             Field::new("settlement_am_open_us", DataType::Int64, false),
+            Field::new("valid_from_yyyymmdd", DataType::Int32, false), // SHOULD be nullable
         ]));
         let zeros: Int64Array = std::iter::repeat(Some(0_i64)).take(1).collect();
+        let i32_zeros: Int32Array = std::iter::repeat(Some(0_i32)).take(1).collect();
         let bools: BooleanArray = std::iter::repeat(Some(false)).take(1).collect();
         let strs: StringArray = std::iter::repeat(Some("X")).take(1).collect();
         let columns: Vec<Arc<dyn Array>> = vec![
@@ -624,6 +688,7 @@ mod tests {
             Arc::new(bools),
             Arc::new(zeros.clone()),
             Arc::new(zeros),
+            Arc::new(i32_zeros),
         ];
         let batch = RecordBatch::try_new(Arc::clone(&wrong_schema), columns)?;
         let file = fs::File::create(&path)?;
@@ -654,6 +719,7 @@ mod tests {
         let pre_open: Int64Array = std::iter::once(Some(123_i64)).collect();
         let pre_close: Int64Array = std::iter::once(Option::<i64>::None).collect();
         let null_int: Int64Array = std::iter::once(Option::<i64>::None).collect();
+        let null_i32: Int32Array = std::iter::once(Option::<i32>::None).collect();
         let null_bool: BooleanArray = std::iter::once(Option::<bool>::None).collect();
         let columns: Vec<Arc<dyn Array>> = vec![
             Arc::new(roots),
@@ -671,6 +737,7 @@ mod tests {
             Arc::new(null_bool),
             Arc::new(null_int.clone()),
             Arc::new(null_int),
+            Arc::new(null_i32),
         ];
         let batch = RecordBatch::try_new(Arc::clone(&schema), columns)?;
         let file = fs::File::create(&path)?;

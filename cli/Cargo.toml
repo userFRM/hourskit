@@ -19,7 +19,7 @@ path = "src/main.rs"
 # CLI is a parquet workflow tool (bundled lookup, refresh, manifest);
 # pin the parquet-loader feature on so the CLI compiles regardless of the
 # default-features setting in any consumer workspace.
-hourskit = { path = "../crates/hourskit", version = "0.5.0", features = ["parquet-loader"] }
+hourskit = { path = "../crates/hourskit", version = "0.6.0", features = ["parquet-loader"] }
 
 anyhow.workspace = true
 tokio.workspace = true

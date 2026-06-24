@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-24
+
+### Added
+
+- Effective-dated sessions. `SessionInfo` gains a `valid_from_yyyymmdd: Option<i32>` field: `None` is the always-valid baseline row, `Some(YYYYMMDD)` stages a future trading-hours change that only governs query dates on or after that trading date. A `(symbol, trading_class)` may now hold multiple rows differing only by this field. The new `session_on(symbol, date)` resolver (plus `session_on_blocking`, the `Hourskit` client method, and `session_for_class_on` / `session_for_class_on_blocking`) returns the row with the greatest `valid_from_yyyymmdd <= date`, treating a `None` baseline as always eligible. The undated `session` / `session_for_class` lookups resolve the latest effective row, so existing callers always see the newest active session; any symbol that carries only a baseline row resolves identically for every date.
+- Cboe extended-hours single-stock-option sessions, effective 2026-07-13, for the firmly-announced names NVDA, TSLA, AAPL, PLTR, AVGO, AMD: a pre-market session 07:30-09:25 ET and a post-market session 16:00-16:15 ET in addition to the regular 09:30-16:00 ET session. Each row is staged via `valid_from_yyyymmdd = 20260713`. The eligible-class list is updated semi-annually, so this roster is the firmly-announced subset pending the full rule-filing list.
+
+### Changed
+
+- **BREAKING**: `data/sessions.parquet` gains a nullable `valid_from_yyyymmdd` Int32 column. Downstream parquet consumers pinned to the prior schema must update to read the new layout.
+
 ## [0.5.0] - 2026-05-07
 
 ### Changed
