@@ -7,13 +7,13 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 authors = ["userFRM"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/userFRM/hourskit"
 documentation = "https://docs.rs/hourskit"
-rust-version = "1.81"
+rust-version = "1.86"
 
 [workspace.dependencies]
 # ── Core ──
@@ -40,11 +40,11 @@ bytes = "1"
 futures = "0.3"
 
 # ── Crypto ──
-sha2 = "0.10"
+sha2 = "0.11"
 
 # ── Parquet / Arrow ──
-arrow = { version = "54", default-features = false, features = ["csv"] }
-parquet = { version = "54", default-features = false, features = ["snap", "zstd", "arrow"] }
+arrow = { version = "58", default-features = false, features = ["csv"] }
+parquet = { version = "58", default-features = false, features = ["snap", "zstd", "arrow"] }
 
 # ── Macros ──
 # Maintained drop-in for the archived `paste` crate (RUSTSEC-2024-0436).

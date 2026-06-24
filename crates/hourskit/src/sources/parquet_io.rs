@@ -102,7 +102,7 @@ fn writer_props() -> Result<WriterProperties> {
         ZstdLevel::try_new(3).map_err(|e| Error::Parquet(format!("invalid zstd level: {e}")))?;
     Ok(WriterProperties::builder()
         .set_compression(Compression::ZSTD(level))
-        .set_max_row_group_size(ROW_GROUP_SIZE)
+        .set_max_row_group_row_count(Some(ROW_GROUP_SIZE))
         .build())
 }
 
@@ -668,10 +668,10 @@ mod tests {
             Field::new("settlement_am_open_us", DataType::Int64, false),
             Field::new("valid_from_yyyymmdd", DataType::Int32, false), // SHOULD be nullable
         ]));
-        let zeros: Int64Array = std::iter::repeat(Some(0_i64)).take(1).collect();
-        let i32_zeros: Int32Array = std::iter::repeat(Some(0_i32)).take(1).collect();
-        let bools: BooleanArray = std::iter::repeat(Some(false)).take(1).collect();
-        let strs: StringArray = std::iter::repeat(Some("X")).take(1).collect();
+        let zeros: Int64Array = std::iter::repeat_n(Some(0_i64), 1).collect();
+        let i32_zeros: Int32Array = std::iter::repeat_n(Some(0_i32), 1).collect();
+        let bools: BooleanArray = std::iter::repeat_n(Some(false), 1).collect();
+        let strs: StringArray = std::iter::repeat_n(Some("X"), 1).collect();
         let columns: Vec<Arc<dyn Array>> = vec![
             Arc::new(strs.clone()),
             Arc::new(strs),

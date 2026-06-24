@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-24
+
+### Security
+
+- Resolved RUSTSEC-2026-0185 (remote memory exhaustion in `quinn-proto` from unbounded out-of-order stream reassembly, reached transitively through `reqwest`) by updating the lockfile to `quinn-proto 0.11.15`, the first release carrying the upstream fix. No first-party code or API change was required.
+
+### Changed
+
+- Updated dependencies: `arrow` and `parquet` 54 to 58, `sha2` 0.10 to 0.11, `directories` 5 to 6, `tokio` to 1.52.3, and `serde_json` to 1.0.150. The bundled `data/sessions.parquet` was regenerated under `parquet 58`; the on-disk schema is unchanged and the bundled sessions round-trip identically.
+- Minimum supported Rust version is now 1.86, the floor required by the refreshed `arrow` / `parquet` / `sha2` stack and their transitive dependencies.
+- CI actions updated: `actions/checkout` to v6 and `actions/github-script` to v9.
+
 ## [0.6.0] - 2026-06-24
 
 ### Added

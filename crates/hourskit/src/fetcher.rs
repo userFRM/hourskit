@@ -162,7 +162,7 @@ impl CachedFetcher {
     ///
     /// Default: 24 hours. Pass `Duration::ZERO` to force every fetch to
     /// hit the network (useful in tests).
-    pub(crate) fn set_staleness_ceiling(&mut self, ceiling: Duration) {
+    pub(crate) const fn set_staleness_ceiling(&mut self, ceiling: Duration) {
         self.staleness_ceiling = ceiling;
     }
 
@@ -172,7 +172,7 @@ impl CachedFetcher {
     /// manifest is older than this, the fetcher returns
     /// [`Error::ManifestStale`] rather than serving unverified data.
     #[cfg(test)]
-    pub(crate) fn set_manifest_stale_ceiling(&mut self, ceiling: Duration) {
+    pub(crate) const fn set_manifest_stale_ceiling(&mut self, ceiling: Duration) {
         self.manifest_stale_ceiling = ceiling;
     }
 
