@@ -162,19 +162,49 @@ impl Hourskit {
     /// returned. Use [`session_for_class`][Self::session_for_class] to pin
     /// a specific class.
     ///
+    /// When a `(symbol, trading_class)` carries multiple effective-dated
+    /// rows (see [`SessionInfo::valid_from_yyyymmdd`]), the LATEST effective
+    /// row — the newest active session — is returned. Use
+    /// [`session_on`][Self::session_on] to resolve the row applicable on a
+    /// specific query date.
+    ///
     /// # Errors
     ///
     /// Returns [`Error`] on HTTP / parquet / verification failure.
     pub async fn session(&self, symbol: impl AsRef<str>) -> Result<Option<SessionInfo>> {
+        self.session_on(symbol, crate::sources::bundled::VALID_FROM_LATEST)
+            .await
+    }
+
+    /// Look up the [`SessionInfo`] for `symbol` applicable on trading date
+    /// `date` (`YYYYMMDD`).
+    ///
+    /// Returns `Ok(None)` when no row matches. Among the effective-dated
+    /// rows for a `(symbol, trading_class)` the applicable row is the one
+    /// with the greatest `valid_from_yyyymmdd <= date`, treating a `None`
+    /// baseline as always eligible (see
+    /// [`SessionInfo::valid_from_yyyymmdd`]). Symbols carrying only a
+    /// baseline row resolve identically for every `date`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on HTTP / parquet / verification failure.
+    pub async fn session_on(
+        &self,
+        symbol: impl AsRef<str>,
+        date: i32,
+    ) -> Result<Option<SessionInfo>> {
         let needle = symbol.as_ref().to_ascii_uppercase();
         let rows = self.sessions_all().await?;
-        Ok(rows
-            .into_iter()
-            .filter(|r| r.symbol == needle)
-            .min_by_key(|r| r.trading_class.preference_rank()))
+        Ok(crate::sources::bundled::resolve_on(rows, &needle, date))
     }
 
     /// Look up the [`SessionInfo`] for a specific `(symbol, trading_class)` pair.
+    ///
+    /// When the pair carries multiple effective-dated rows, the LATEST
+    /// effective row is returned. Use
+    /// [`session_for_class_on`][Self::session_for_class_on] to resolve the
+    /// row applicable on a specific query date.
     ///
     /// # Errors
     ///
@@ -184,12 +214,38 @@ impl Hourskit {
         symbol: impl AsRef<str>,
         trading_class: &crate::TradingClass,
     ) -> Result<Option<SessionInfo>> {
+        self.session_for_class_on(
+            symbol,
+            trading_class,
+            crate::sources::bundled::VALID_FROM_LATEST,
+        )
+        .await
+    }
+
+    /// Look up the [`SessionInfo`] for a specific `(symbol, trading_class)`
+    /// pair applicable on trading date `date` (`YYYYMMDD`).
+    ///
+    /// Resolves the effective-dated row within the class (greatest
+    /// `valid_from_yyyymmdd <= date`, `None` baseline always eligible).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on HTTP / parquet / verification failure.
+    pub async fn session_for_class_on(
+        &self,
+        symbol: impl AsRef<str>,
+        trading_class: &crate::TradingClass,
+        date: i32,
+    ) -> Result<Option<SessionInfo>> {
         let needle = symbol.as_ref().to_ascii_uppercase();
         let target_wire = trading_class.as_wire();
         let rows = self.sessions_all().await?;
-        Ok(rows
-            .into_iter()
-            .find(|r| r.symbol == needle && r.trading_class.as_wire() == target_wire))
+        Ok(crate::sources::bundled::resolve_for_class_on(
+            rows,
+            &needle,
+            &target_wire,
+            date,
+        ))
     }
 
     /// Read every row of the bundled session table.
@@ -223,6 +279,24 @@ impl Hourskit {
         block(self.session(needle))
     }
 
+    /// Blocking variant of [`session_on`][Self::session_on].
+    ///
+    /// Same runtime constraint as [`session_blocking`][Self::session_blocking].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on HTTP / parquet / verification failure, or
+    /// [`Error::BlockingFromCurrentThreadRuntime`] when invoked from a
+    /// tokio current-thread runtime.
+    pub fn session_on_blocking(
+        &self,
+        symbol: impl AsRef<str>,
+        date: i32,
+    ) -> Result<Option<SessionInfo>> {
+        let needle = symbol.as_ref().to_string();
+        block(self.session_on(needle, date))
+    }
+
     /// Blocking variant of [`sessions_all`][Self::sessions_all].
     ///
     /// Same runtime constraint as [`session_blocking`][Self::session_blocking].
@@ -253,6 +327,26 @@ impl Hourskit {
         let needle = symbol.as_ref().to_string();
         let class = trading_class.clone();
         block(async move { self.session_for_class(needle, &class).await })
+    }
+
+    /// Blocking variant of [`session_for_class_on`][Self::session_for_class_on].
+    ///
+    /// Same runtime constraint as [`session_blocking`][Self::session_blocking].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on HTTP / parquet / verification failure, or
+    /// [`Error::BlockingFromCurrentThreadRuntime`] when invoked from a
+    /// tokio current-thread runtime.
+    pub fn session_for_class_on_blocking(
+        &self,
+        symbol: impl AsRef<str>,
+        trading_class: &crate::TradingClass,
+        date: i32,
+    ) -> Result<Option<SessionInfo>> {
+        let needle = symbol.as_ref().to_string();
+        let class = trading_class.clone();
+        block(async move { self.session_for_class_on(needle, &class, date).await })
     }
 }
 

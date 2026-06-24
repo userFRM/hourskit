@@ -114,6 +114,77 @@ pub fn invalidate_cache() {
 }
 
 // ---------------------------------------------------------------------------
+// Effective-dating resolution
+// ---------------------------------------------------------------------------
+
+/// Sentinel query date that selects the LATEST effective row.
+///
+/// The undated lookups ([`session`], [`crate::Hourskit::session`], and the
+/// free-function shortcuts) resolve "the currently-effective row" as the
+/// greatest `valid_from_yyyymmdd <= MAX`. Pinning the sentinel to the
+/// maximum `i32` makes every staged future row eligible, so an existing
+/// caller always observes the newest active session for a symbol.
+pub(crate) const VALID_FROM_LATEST: i32 = i32::MAX;
+
+/// True when `row` is effective on the query date `on`.
+///
+/// A `None` baseline row is always eligible (treated as `-inf`); a
+/// `Some(valid_from)` row is eligible only when `valid_from <= on`.
+#[inline]
+const fn row_effective_on(row: &SessionInfo, on: i32) -> bool {
+    match row.valid_from_yyyymmdd {
+        None => true,
+        Some(valid_from) => valid_from <= on,
+    }
+}
+
+/// Effective-date ordering key: a `None` baseline sorts below every dated
+/// row (negative infinity), and dated rows sort by their `YYYYMMDD`.
+#[inline]
+fn valid_from_key(row: &SessionInfo) -> i32 {
+    row.valid_from_yyyymmdd.unwrap_or(i32::MIN)
+}
+
+/// Resolve the applicable row for `(symbol, trading_class)` on query date
+/// `on`, honouring effective dating within the class (greatest
+/// `valid_from_yyyymmdd <= on`, `None` baseline always eligible).
+pub(crate) fn resolve_for_class_on(
+    rows: Vec<SessionInfo>,
+    needle: &str,
+    target_wire: &str,
+    on: i32,
+) -> Option<SessionInfo> {
+    rows.into_iter()
+        .filter(|r| {
+            r.symbol == needle
+                && r.trading_class.as_wire() == target_wire
+                && row_effective_on(r, on)
+        })
+        .max_by_key(valid_from_key)
+}
+
+/// Resolve the applicable row for `symbol` on query date `on`.
+///
+/// For a `(symbol, trading_class)` group that holds multiple effective-dated
+/// rows, the applicable row is the one with the greatest
+/// `valid_from_yyyymmdd <= on` (a `None` baseline counting as `-inf`). Across
+/// trading classes the lowest [`TradingClass::preference_rank`] wins, matching
+/// the undated [`session`] tie-break.
+pub(crate) fn resolve_on(rows: Vec<SessionInfo>, needle: &str, on: i32) -> Option<SessionInfo> {
+    rows.into_iter()
+        .filter(|r| r.symbol == needle && row_effective_on(r, on))
+        // Lowest preference_rank wins across classes; within a class the
+        // greatest valid_from wins. `min_by` keeps the first element on
+        // ties, so order by (rank asc, valid_from desc) and take the min.
+        .min_by(|a, b| {
+            a.trading_class
+                .preference_rank()
+                .cmp(&b.trading_class.preference_rank())
+                .then_with(|| valid_from_key(b).cmp(&valid_from_key(a)))
+        })
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -124,20 +195,52 @@ pub fn invalidate_cache() {
 /// [`TradingClass::preference_rank`] is lowest wins. Use
 /// [`session_for_class`] to pin a specific class explicitly.
 ///
+/// # Effective dating
+///
+/// When a `(symbol, trading_class)` carries multiple effective-dated rows
+/// (see [`SessionInfo::valid_from_yyyymmdd`]), this function resolves the
+/// LATEST effective row — the newest active session. Existing callers
+/// therefore always see the most recent rule in force. Use [`session_on`]
+/// to resolve the row applicable on a specific query date.
+///
 /// # Errors
 ///
 /// Returns [`Error`] if the bundled parquet file is missing or fails to
 /// read.
 pub fn session(symbol: &str) -> Result<Option<SessionInfo>> {
+    session_on(symbol, VALID_FROM_LATEST)
+}
+
+/// Look up the session for `symbol` applicable on trading date `date`
+/// (`YYYYMMDD`), returning `None` if no row matches.
+///
+/// Lookup is case-insensitive on the symbol. Among the effective-dated rows
+/// for a `(symbol, trading_class)` the applicable row is the one with the
+/// greatest `valid_from_yyyymmdd <= date`, treating a `None` baseline row as
+/// always eligible (see [`SessionInfo::valid_from_yyyymmdd`]). When the
+/// symbol resolves across multiple trading classes, the lowest
+/// [`TradingClass::preference_rank`] wins, matching [`session`].
+///
+/// A symbol that carries only a `None` baseline row resolves identically for
+/// every `date`, so this is fully backward-compatible with [`session`] for
+/// any symbol that has no staged future row.
+///
+/// # Errors
+///
+/// Returns [`Error`] if the bundled parquet file is missing or fails to
+/// read.
+pub fn session_on(symbol: &str, date: i32) -> Result<Option<SessionInfo>> {
     let needle = symbol.to_ascii_uppercase();
     let rows = load_or_cached()?;
-    Ok(rows
-        .into_iter()
-        .filter(|r| r.symbol == needle)
-        .min_by_key(|r| r.trading_class.preference_rank()))
+    Ok(resolve_on(rows, &needle, date))
 }
 
 /// Look up the session for a specific `(symbol, trading_class)` pair.
+///
+/// When the pair carries multiple effective-dated rows, the LATEST effective
+/// row is returned (matching the undated [`session`] semantics). Use
+/// [`session_for_class_on`] to resolve the row applicable on a specific
+/// query date.
 ///
 /// # Errors
 ///
@@ -147,12 +250,29 @@ pub fn session_for_class(
     symbol: &str,
     trading_class: &TradingClass,
 ) -> Result<Option<SessionInfo>> {
+    session_for_class_on(symbol, trading_class, VALID_FROM_LATEST)
+}
+
+/// Look up the session for a specific `(symbol, trading_class)` pair
+/// applicable on trading date `date` (`YYYYMMDD`).
+///
+/// Resolves the effective-dated row within the class: the greatest
+/// `valid_from_yyyymmdd <= date`, treating a `None` baseline as always
+/// eligible (see [`SessionInfo::valid_from_yyyymmdd`]).
+///
+/// # Errors
+///
+/// Returns [`Error`] if the bundled parquet file is missing or fails to
+/// read.
+pub fn session_for_class_on(
+    symbol: &str,
+    trading_class: &TradingClass,
+    date: i32,
+) -> Result<Option<SessionInfo>> {
     let needle = symbol.to_ascii_uppercase();
     let target_wire = trading_class.as_wire();
     let rows = load_or_cached()?;
-    Ok(rows
-        .into_iter()
-        .find(|r| r.symbol == needle && r.trading_class.as_wire() == target_wire))
+    Ok(resolve_for_class_on(rows, &needle, &target_wire, date))
 }
 
 /// Read the full session table.
@@ -172,9 +292,80 @@ pub fn sessions_all() -> Result<Vec<SessionInfo>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session::{Settlement, TimeWindow};
 
     #[test]
     fn data_dir_does_not_panic() {
         let _ = data_dir();
+    }
+
+    fn row(symbol: &str, class: TradingClass, valid_from: Option<i32>) -> SessionInfo {
+        SessionInfo {
+            symbol: symbol.to_string(),
+            trading_class: class,
+            regular: TimeWindow::from_clock_et(9, 30, 16, 0),
+            pre_market: None,
+            post_market: None,
+            curb: None,
+            gth: None,
+            gth_overnight: false,
+            last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
+            valid_from_yyyymmdd: valid_from,
+        }
+    }
+
+    #[test]
+    fn baseline_only_symbol_resolves_for_any_date() {
+        let rows = vec![row("AAPL", TradingClass::EquityNasdaq, None)];
+        // Every query date returns the baseline row; fully back-compat.
+        for date in [10_000_101, 20_260_712, VALID_FROM_LATEST] {
+            let got = resolve_on(rows.clone(), "AAPL", date).expect("baseline");
+            assert_eq!(got.valid_from_yyyymmdd, None);
+        }
+    }
+
+    #[test]
+    fn staged_future_row_only_applies_on_or_after_valid_from() {
+        let rows = vec![
+            row("NVDA", TradingClass::OptionsCboeBzxC2Edgx, None),
+            row("NVDA", TradingClass::OptionsCboeBzxC2Edgx, Some(20_260_713)),
+        ];
+        // Day before: baseline row.
+        let before = resolve_on(rows.clone(), "NVDA", 20_260_712).expect("before");
+        assert_eq!(before.valid_from_yyyymmdd, None);
+        // Effective day: staged row.
+        let on = resolve_on(rows.clone(), "NVDA", 20_260_713).expect("on");
+        assert_eq!(on.valid_from_yyyymmdd, Some(20_260_713));
+        // Latest sentinel: staged row (newest active session).
+        let latest = resolve_on(rows, "NVDA", VALID_FROM_LATEST).expect("latest");
+        assert_eq!(latest.valid_from_yyyymmdd, Some(20_260_713));
+    }
+
+    #[test]
+    fn greatest_valid_from_at_or_below_date_wins() {
+        let rows = vec![
+            row("X", TradingClass::EquityNasdaq, None),
+            row("X", TradingClass::EquityNasdaq, Some(20_260_101)),
+            row("X", TradingClass::EquityNasdaq, Some(20_260_713)),
+        ];
+        // On 2026-07-12 the 2026-01-01 row is the greatest <= date.
+        let mid = resolve_on(rows.clone(), "X", 20_260_712).expect("mid");
+        assert_eq!(mid.valid_from_yyyymmdd, Some(20_260_101));
+        // On 2026-07-13 the newest row wins.
+        let new = resolve_on(rows, "X", 20_260_713).expect("new");
+        assert_eq!(new.valid_from_yyyymmdd, Some(20_260_713));
+    }
+
+    #[test]
+    fn lowest_preference_rank_wins_across_classes() {
+        // SPY listed as both options (C1, rank 0) and equity (rank 7);
+        // the options row wins regardless of effective dating.
+        let rows = vec![
+            row("SPY", TradingClass::EquityNyseArca, None),
+            row("SPY", TradingClass::OptionsCboeC1, None),
+        ];
+        let got = resolve_on(rows, "SPY", VALID_FROM_LATEST).expect("spy");
+        assert_eq!(got.trading_class, TradingClass::OptionsCboeC1);
     }
 }

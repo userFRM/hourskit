@@ -31,6 +31,7 @@
 //!     gth_overnight: true,
 //!     last_trading_day_close_us: None,
 //!     settlement: Settlement::Pm,
+//!     valid_from_yyyymmdd: None,
 //! };
 //! // The regular session is 6h30m long; the duration accessor honours `TimeUnit`.
 //! assert_eq!(info.regular.duration_secs(), 6 * 3_600 + 30 * 60);
@@ -765,6 +766,7 @@ const fn day_of_week_yyyymmdd(yyyymmdd: i32) -> i32 {
 /// | `gth_overnight` | true if `gth.open_us` is on the PRIOR trading day; false if same-day evening start | implied by class |
 /// | `last_trading_day_close_us` | per-contract early close on contract expiry day (CBOE Rule 5.1(b)(2)(C)) | NDXP, RUTW, MRUT, SPXW, XSP, OEX, XEO |
 /// | `settlement` | settlement convention rule for the contract family ([`Settlement::Pm`] default; [`Settlement::AmOpen`] for SPX standard third-Friday) | SPX |
+/// | `valid_from_yyyymmdd` | trading date this row takes effect (`None` = always-valid baseline) | any staged future rule change |
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SessionInfo {
     /// Symbol (uppercase) e.g. `"SPX"`, `"AAPL"`.
@@ -820,6 +822,28 @@ pub struct SessionInfo {
     /// classifier and falls back to PM for SPXW / EOM / weekly
     /// expirations on the SPX row.
     pub settlement: Settlement,
+    /// Trading date (`YYYYMMDD`) on or after which this row takes effect.
+    ///
+    /// `None` is the **baseline** row: always valid, the rule that
+    /// applies absent any dated override. `Some(yyyymmdd)` stages a
+    /// future rule change — the row only governs query dates `>= yyyymmdd`.
+    ///
+    /// Effective-dating lets an announced trading-hours change be carried
+    /// in the dataset ahead of its start date without disturbing current
+    /// resolution. For a given `(symbol, trading_class)` the dataset may
+    /// hold multiple rows differing only by this field; the applicable
+    /// row for a query date `D` is the one with the greatest
+    /// `valid_from_yyyymmdd <= D`, treating `None` as negative infinity
+    /// (always eligible). See
+    /// [`crate::sources::bundled::session_on`] for the date-aware
+    /// resolver. The undated lookups
+    /// ([`crate::sources::bundled::session`] and friends) resolve the
+    /// LATEST effective row — i.e. the newest active session — so an
+    /// existing caller always sees the most recent rule in force.
+    ///
+    /// Every legacy single-row symbol carries `None` here, so behaviour
+    /// is unchanged for any symbol that has no staged future row.
+    pub valid_from_yyyymmdd: Option<i32>,
 }
 
 impl SessionInfo {
@@ -971,6 +995,7 @@ impl SessionInfo {
     ///     gth_overnight: false,
     ///     last_trading_day_close_us: None,
     ///     settlement: Settlement::AmOpen { open_us_of_day: NINE_THIRTY_US },
+    ///     valid_from_yyyymmdd: None,
     /// };
     /// // SPX 3rd-Friday May 2026 (15th) → AM SET 09:30 ET.
     /// assert_eq!(spx.settlement_cutoff_us(20_260_515), NINE_THIRTY_US);
@@ -1152,6 +1177,7 @@ mod tests {
             gth_overnight: true,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         };
         // last_trading_us() ignores overnight GTH (open is on prior day).
         assert_eq!(info.last_trading_us(), hm_us(17, 0));
@@ -1170,6 +1196,7 @@ mod tests {
             gth_overnight: true,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         };
         assert_eq!(info.last_trading_us(), hm_us(20, 0));
     }
@@ -1205,6 +1232,7 @@ mod tests {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement,
+            valid_from_yyyymmdd: None,
         }
     }
 
@@ -1286,6 +1314,7 @@ mod tests {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         };
         // 16:00 ET in microseconds-of-day.
         assert_eq!(info.settlement_cutoff_us(20_260_515), 57_600_000_000);
@@ -1310,6 +1339,7 @@ mod tests {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         };
         assert_eq!(info.settlement_cutoff_us(20_260_515), regular_close);
     }

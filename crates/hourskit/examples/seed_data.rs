@@ -97,6 +97,7 @@ fn main() -> hourskit::Result<()> {
 
     let mut rows: Vec<SessionInfo> = Vec::new();
     rows.extend(extended_trading_options());
+    rows.extend(cboe_eth_single_stock_options());
     rows.extend(equity_nasdaq());
     rows.extend(equity_nyse_arca());
     rows.extend(equity_cboe_bzx_edgx());
@@ -376,6 +377,7 @@ fn extended_trading_options() -> Vec<SessionInfo> {
                 gth_overnight: class_is_c1,
                 last_trading_day_close_us,
                 settlement,
+                valid_from_yyyymmdd: None,
             }
         })
         .collect();
@@ -403,9 +405,71 @@ fn extended_trading_options() -> Vec<SessionInfo> {
             gth_overnight: true,
             last_trading_day_close_us: Some(LAST_TRADING_DAY_CLOSE_US),
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         });
     }
     rows
+}
+
+// ── Cboe extended-hours single-stock options (effective 2026-07-13) ──────────
+
+/// 2026-07-13 — trading date the Cboe extended-hours single-stock-option
+/// sessions take effect, encoded as the `valid_from_yyyymmdd` of every row
+/// in [`cboe_eth_single_stock_options`].
+const CBOE_ETH_VALID_FROM: i32 = 20_260_713;
+
+/// Firmly-announced single-stock options eligible for Cboe extended trading
+/// hours starting 2026-07-13.
+///
+/// # Source
+///
+/// Cboe Options Exchange received SEC approval to offer extended trading
+/// hours on select multi-listed single-stock (equity) options, beginning
+/// 2026-07-13, adding a pre-market session 07:30-09:25 ET and a post-market
+/// session 16:00-16:15 ET on top of the regular 09:30-16:00 ET session.
+///
+/// This roster is the FIRMLY-ANNOUNCED subset only — the six names Cboe has
+/// publicly confirmed. Cboe updates the eligible-class list on a
+/// **semi-annual** cadence, so the full set is broader than these six and
+/// will grow at each review. The complete list and the exact class
+/// assignment must be reconciled against Cboe's rule filing before the
+/// dataset is treated as authoritative for extended-hours single-stock
+/// option coverage. No name beyond the published six and no window beyond
+/// the published 07:30-09:25 / 16:00-16:15 ET sessions is encoded here.
+const CBOE_ETH_SINGLE_STOCK_OPTION_SYMBOLS: &[&str] =
+    &["NVDA", "TSLA", "AAPL", "PLTR", "AVGO", "AMD"];
+
+/// Seed the Cboe extended-hours single-stock-option rows (effective
+/// 2026-07-13).
+///
+/// Each row is effective-dated via [`SessionInfo::valid_from_yyyymmdd`] =
+/// [`CBOE_ETH_VALID_FROM`], so it is staged in the dataset without affecting
+/// resolution for any query date before 2026-07-13. The trading class is
+/// [`TradingClass::OptionsCboeBzxC2Edgx`] — the same class the bundled data
+/// already assigns to multi-listed equity options on Cboe (see
+/// [`extended_trading_options`], where every non-C1 roster entry maps to this
+/// class). The regular 09:30-16:00 ET session is paired with the announced
+/// pre-market (07:30-09:25 ET) and post-market (16:00-16:15 ET) windows.
+fn cboe_eth_single_stock_options() -> Vec<SessionInfo> {
+    let regular = TimeWindow::from_clock_et(9, 30, 16, 0);
+    let pre = TimeWindow::from_clock_et(7, 30, 9, 25);
+    let post = TimeWindow::from_clock_et(16, 0, 16, 15);
+    CBOE_ETH_SINGLE_STOCK_OPTION_SYMBOLS
+        .iter()
+        .map(|r| SessionInfo {
+            symbol: (*r).to_string(),
+            trading_class: TradingClass::OptionsCboeBzxC2Edgx,
+            regular,
+            pre_market: Some(pre),
+            post_market: Some(post),
+            curb: None,
+            gth: None,
+            gth_overnight: false,
+            last_trading_day_close_us: None,
+            settlement: Settlement::Pm,
+            valid_from_yyyymmdd: Some(CBOE_ETH_VALID_FROM),
+        })
+        .collect()
 }
 
 // ── EquityNasdaq ──────────────────────────────────────────────────────────────
@@ -442,6 +506,7 @@ fn equity_nasdaq() -> Vec<SessionInfo> {
             gth_overnight: true,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         })
         .collect()
 }
@@ -472,6 +537,7 @@ fn equity_nyse_arca() -> Vec<SessionInfo> {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         })
         .collect()
 }
@@ -502,6 +568,7 @@ fn equity_cboe_bzx_edgx() -> Vec<SessionInfo> {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         })
         .collect()
 }
@@ -527,6 +594,7 @@ fn equity_cboe_byx_edga() -> Vec<SessionInfo> {
             gth_overnight: false,
             last_trading_day_close_us: None,
             settlement: Settlement::Pm,
+            valid_from_yyyymmdd: None,
         })
         .collect()
 }
