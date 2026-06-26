@@ -422,12 +422,8 @@ mod tests {
         );
     }
 
-    /// Reference implementation transcribed from the
-    /// `thetadatadx-analytics` crates (three identical copies in
-    /// `_shared/time_to_expiration.rs`, `_shared/market_data/rate.rs`,
-    /// `greeks/emission.rs`). Used to confirm output-byte parity
-    /// across every valid YYYYMMDD in a 1970..=2099 sweep so the
-    /// downstream cleanup is a drop-in import.
+    /// Independent reference implementation, kept to confirm output-byte
+    /// parity across every valid YYYYMMDD in a 1970..=2099 sweep.
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     fn analytics_reference_days_from_epoch(yyyymmdd: i32) -> i32 {
         let y = yyyymmdd / 10_000;
