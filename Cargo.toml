@@ -17,8 +17,8 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # ── Core ──
-anyhow = "1.0"
-thiserror = "2.0"
+anyhow = "1"
+thiserror = "2"
 
 # ── Async runtime ──
 tokio = { version = "1", features = ["full"] }
@@ -51,7 +51,7 @@ parquet = { version = "58", default-features = false, features = ["snap", "zstd"
 # Held at the workspace level so any first-party macro work reaches the
 # maintained fork. The transitive `paste` pulled in by `parquet` is gated
 # behind the `parquet-loader` feature in the lib crate.
-pastey = "0.2.2"
+pastey = "0.2"
 
 # ── CLI ──
 clap = { version = "4", features = ["derive", "env"] }

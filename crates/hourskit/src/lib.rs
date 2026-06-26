@@ -16,15 +16,7 @@
 //! since midnight (US/Eastern); accessor methods convert to milliseconds or
 //! seconds at the API surface based on the caller's [`TimeUnit`] choice.
 //!
-//! # Why hourskit exists
-//!
-//! Every options analytics SDK ends up hard-coding session boundaries it
-//! needs to chase quietly when an exchange updates its rules. `hourskit` is
-//! the maintained data plane: ship a parquet, fetch it on demand with ETag
-//! revalidation, refresh at least every 24 hours, and verify each fetch
-//! against a SHA-256 manifest.
-//!
-//! # Quick start — one-off scripts
+//! # Quick start
 //!
 //! ```no_run
 //! #[tokio::main]
@@ -37,22 +29,8 @@
 //! }
 //! ```
 //!
-//! # Client pattern — connection pool + cache reuse
-//!
-//! ```no_run
-//! use hourskit::Hourskit;
-//! use std::time::Duration;
-//!
-//! #[tokio::main]
-//! async fn main() -> hourskit::Result<()> {
-//!     let client = Hourskit::new()
-//!         .with_staleness_ceiling(Duration::from_secs(24 * 3600));
-//!
-//!     let info = client.session("AAPL").await?.expect("AAPL in seed");
-//!     println!("AAPL regular: {}", info.regular);
-//!     Ok(())
-//! }
-//! ```
+//! For repeated lookups, create a [`Hourskit`] client once and reuse it so the
+//! HTTP connection pool and parquet cache are shared across calls.
 //!
 //! # Major types
 //!
