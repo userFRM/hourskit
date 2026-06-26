@@ -76,7 +76,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hourskit::time::days_from_epoch(yyyymmdd: i32) -> i32` and
   `hourskit::time::days_between_yyyymmdd(from: i32, to: i32) -> i32`
   Gregorian-date arithmetic helpers. Linear-scan implementation
-  matching the three private copies that `thetadatadx-analytics`
+  matching the three private copies that the consuming analytics SDK
   carried in `_shared/time_to_expiration.rs`,
   `_shared/market_data/rate.rs`, and `greeks/emission.rs`. Output-byte
   parity verified by a 47k-row sweep across every valid YYYYMMDD in
@@ -97,7 +97,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   encoding the SIP equity regular-trading-hours window
   `[09:30 ET, 16:00 ET)`. Compile-time guards pin the μs/ms
   variants together. Removes duplicated `RTH_START_MS` /
-  `RTH_END_MS` declarations in `thetadatadx-analytics`
+  `RTH_END_MS` declarations in the consuming analytics SDK
   (`analytics/ohlcvc/bar.rs`).
 
 ## [0.3.0] - 2026-05-05
