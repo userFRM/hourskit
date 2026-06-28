@@ -9,7 +9,7 @@ US exchange trading-hours reference data for Rust, microsecond-native. Served fr
 hourskit = "0.6.1"
 ```
 
-Until it is published to crates.io, depend on the repository directly:
+To track unreleased changes, depend on the repository directly:
 
 ```toml
 hourskit = { git = "https://github.com/userFRM/hourskit" }
@@ -88,7 +88,7 @@ Sources:
 3. Firstrade, "Options that trade until 4:15 PM Eastern Time". <https://help.firstrade.info/en/articles/9264922-options-that-trade-until-4-15-pm-eastern-time-utc-5>
 4. NASDAQ Trader, Options Market Hours. <https://www.nasdaqtrader.com/Trader.aspx?id=optionshours>
 5. Nasdaq Stock Market, Global Trading Hours FAQ. <https://www.nasdaq.com/docs/nasdaq-global-trading-hours-faqs>
-6. ThetaData docs. <https://docs.thetadata.us/>
+6. Market-data vendor operational coverage (live-data roster cross-validation).
 
 ## Cache
 

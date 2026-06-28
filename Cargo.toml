@@ -99,7 +99,7 @@ redundant_pub_crate = "allow"
 # Allowed because the seed-data example is fixed-list initialisation; the
 # pedantic warning fires on every line of a `[&str]` literal.
 must_use_candidate = "allow"
-# Brand names (ETag, ThetaData, XDG, OPRA, jsDelivr, NASDAQ, ...) trigger this
+# Brand names (ETag, XDG, OPRA, jsDelivr, NASDAQ, ...) trigger this
 # even when used in plain prose. The standard idiom is to backtick types and
 # functions, not English-language vendor names.
 doc_markdown = "allow"

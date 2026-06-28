@@ -9,11 +9,11 @@
 //! ## Source citations
 //!
 //! The bundled session data is cross-referenced against five authoritative
-//! public sources. The rosters DO NOT agree perfectly — broker, exchange,
-//! and operational data each draw a slightly different line. `hourskit`
-//! ships the ThetaData operational superset because it carries the
-//! broadest live-data coverage; the broker / exchange subsets are retained
-//! as cross-validation references in the comment block on
+//! sources. The rosters do not agree perfectly: broker, exchange, and
+//! operational data each draw a slightly different line. `hourskit` ships
+//! the broadest operational superset because it carries the widest
+//! live-data coverage; the broker / exchange subsets are retained as
+//! cross-validation references in the comment block on
 //! [`EXTENDED_TRADING_ROSTER`] below.
 //!
 //! 1. **Cboe C1 Rule Book — Rule 5.1(b)(1) and 5.1(b)(2)(C)**: primary
@@ -57,11 +57,10 @@
 //!    Hours session 20:15 ET prior trading day to 09:25 ET current trading
 //!    day (the close was extended from 09:15 to 09:25):
 //!    <https://cdn.opraplan.com/documents/notices/Revised_OPRA_GTH_Hours_of_Operation_Eff_082624.pdf>
-//! 5. **ThetaData operational documentation**: cross-validation of the
+//! 5. **Market-data vendor operational coverage**: cross-validation of the
 //!    live-data roster used for tick filtering, including legacy / niche
 //!    listings (e.g. AUM, AUX, BACD, JPMD, MSTD) that pre-date some
-//!    broker-side curation:
-//!    <https://docs.thetadata.us/>
+//!    broker-side curation.
 //!
 //! Nasdaq Stock Market 21:00-04:00 ET Extended Session (2026 Global
 //! Trading Hours program) is sourced from Nasdaq's own announcement:
@@ -117,17 +116,17 @@ fn main() -> hourskit::Result<()> {
 
 /// Cboe-listed options eligible to trade until 16:15 ET — 82 entries.
 ///
-/// # Cross-reference against the five public sources
+/// # Cross-reference against the cited sources
 ///
-/// The five sources cited in the module doc do NOT agree perfectly; this
-/// const ships the ThetaData operational superset and tracks each subset:
+/// The sources cited in the module doc do not agree perfectly; this
+/// const ships the vendor operational superset and tracks each subset:
 ///
-/// - **79 entries**: Firstrade ∩ ThetaData (broker-curated 2026-02-10 list,
-///   intersected with the live-data roster ThetaData maintains).
-/// - **64 entries**: NASDAQ Trader ∩ ThetaData (NASDAQ NOM
+/// - **79 entries**: Firstrade ∩ vendor (broker-curated 2026-02-10 list,
+///   intersected with the vendor live-data roster).
+/// - **64 entries**: NASDAQ Trader ∩ vendor (NASDAQ NOM
 ///   exchange-published Options Market Hours page, intersected with the
 ///   live-data roster).
-/// - **~30 entries are ThetaData-only** legacy / niche listings that
+/// - **~30 entries are vendor-only** legacy / niche listings that
 ///   pre-date some broker-side curation:
 ///   `AUM`, `AUX`, `BACD`, `BPX`, `BRB`, `BSZ`, `BVZ`, `CDD`, `CITD`,
 ///   `GAZ`, `GBP`, `GSSD`, `JJC`, `JPMD`, `MLPN`, `MNX`, `MSTD`, `NDO`,
