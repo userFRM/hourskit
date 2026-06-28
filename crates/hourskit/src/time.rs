@@ -11,11 +11,11 @@
 //!
 //! # Unit choice
 //!
-//! `i32` is the canonical analytics type for ms-of-day on the FPSS
-//! wire and on every shipped tick struct. `i32::MAX` (`2_147_483_647`)
+//! `i32` is the canonical type for ms-of-day on the tick wire
+//! and on every shipped tick struct. `i32::MAX` (`2_147_483_647`)
 //! sits comfortably above `MS_PER_DAY` (`86_400_000`), so an `i32`
 //! ms-of-day reading admits the full daily span without wrap. The
-//! `YYYYMMDD` date helpers are also `i32` to match the FPSS wire date
+//! `YYYYMMDD` date helpers are also `i32` to match the wire date
 //! type.
 //!
 //! # Example
@@ -25,7 +25,7 @@
 //!     days_between_yyyymmdd, MIN_PER_DAY, MS_PER_DAY, SECONDS_PER_DAY,
 //! };
 //!
-//! // FPSS ms-of-day reading — clamp on the trust boundary.
+//! // ms-of-day reading, clamp on the trust boundary.
 //! let ms_of_day: i32 = 57_600_000; // 16:00 ET
 //! assert!((0..=MS_PER_DAY).contains(&ms_of_day));
 //!
@@ -33,7 +33,7 @@
 //! assert_eq!(MS_PER_DAY, SECONDS_PER_DAY * 1_000);
 //! assert_eq!(SECONDS_PER_DAY, MIN_PER_DAY * 60);
 //!
-//! // Calendar-day delta between two FPSS-style YYYYMMDD ints.
+//! // Calendar-day delta between two YYYYMMDD ints.
 //! assert_eq!(days_between_yyyymmdd(20_260_515, 20_260_516), 1);
 //! // Leap-year boundary: 2024 had a Feb 29 so the gap is two days.
 //! assert_eq!(days_between_yyyymmdd(20_240_228, 20_240_301), 2);
@@ -67,7 +67,7 @@
 /// Milliseconds in a UTC calendar day.
 ///
 /// `24 × 60 × 60 × 1_000 = 86_400_000`. Use as the upper bound on
-/// FPSS ms-of-day stamps (the wire admits a session-midnight roll
+/// ms-of-day stamps (the wire admits a session-midnight roll
 /// at `MS_PER_DAY` exactly), and as the multiplier on
 /// "full days between event and settlement" inside minute-precision
 /// time-to-expiration walks.
@@ -126,14 +126,14 @@ pub const RTH_END_MS: i32 = 57_600_000;
 /// microseconds-of-day.
 ///
 /// `RTH_START_MS * 1_000 = 34_200_000_000`. Provided for callers
-/// that compose with `i64` μs-of-day arithmetic on the FPSS wire.
+/// that compose with `i64` μs-of-day arithmetic on the tick wire.
 pub const RTH_START_US: i64 = 34_200_000_000;
 
 /// Regular-trading-hours session end (16:00:00 ET) in
 /// microseconds-of-day.
 ///
 /// `RTH_END_MS * 1_000 = 57_600_000_000`. Provided for callers
-/// that compose with `i64` μs-of-day arithmetic on the FPSS wire.
+/// that compose with `i64` μs-of-day arithmetic on the tick wire.
 pub const RTH_END_US: i64 = 57_600_000_000;
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ pub const RTH_END_US: i64 = 57_600_000_000;
 /// Days between the Unix epoch (1970-01-01) and the day encoded by
 /// `yyyymmdd`, in the proleptic Gregorian calendar.
 ///
-/// The input is the FPSS wire date encoding: `year * 10_000 + month *
+/// The input is the wire date encoding: `year * 10_000 + month *
 /// 100 + day` (e.g. `20_260_516` for 2026-05-16). The output is the
 /// signed integer count of days since 1970-01-01 (which itself
 /// returns `0`).
@@ -422,12 +422,8 @@ mod tests {
         );
     }
 
-    /// Reference implementation transcribed from the
-    /// `thetadatadx-analytics` crates (three identical copies in
-    /// `_shared/time_to_expiration.rs`, `_shared/market_data/rate.rs`,
-    /// `greeks/emission.rs`). Used to confirm output-byte parity
-    /// across every valid YYYYMMDD in a 1970..=2099 sweep so the
-    /// downstream cleanup is a drop-in import.
+    /// Independent reference implementation, kept to confirm output-byte
+    /// parity across every valid YYYYMMDD in a 1970..=2099 sweep.
     #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
     fn analytics_reference_days_from_epoch(yyyymmdd: i32) -> i32 {
         let y = yyyymmdd / 10_000;

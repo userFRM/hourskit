@@ -69,17 +69,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `hourskit::time` module exporting day-length constants in canonical
   integer units: `MS_PER_DAY: i32 = 86_400_000`,
   `SECONDS_PER_DAY: i32 = 86_400`, `MIN_PER_DAY: i32 = 1_440`. Used as
-  the upper bound on FPSS ms-of-day stamps and as the "full day"
+  the upper bound on ms-of-day stamps and as the "full day"
   multiplier inside minute-precision time-to-expiration walks. Removes
   duplicated `const MS_PER_DAY: i32 = 86_400_000;` declarations in
   downstream analytics crates.
 - `hourskit::time::days_from_epoch(yyyymmdd: i32) -> i32` and
   `hourskit::time::days_between_yyyymmdd(from: i32, to: i32) -> i32`
   Gregorian-date arithmetic helpers. Linear-scan implementation
-  matching the three private copies that `thetadatadx-analytics`
-  carried in `_shared/time_to_expiration.rs`,
-  `_shared/market_data/rate.rs`, and `greeks/emission.rs`. Output-byte
-  parity verified by a 47k-row sweep across every valid YYYYMMDD in
+  matching the private copies the consuming analytics SDK carried
+  internally. Output-byte parity verified by a 47k-row sweep across
+  every valid YYYYMMDD in
   1970..=2099 inside `time::tests`.
 - `hourskit::session::OPTION_PM_SETTLEMENT_US: i64 = 57_600_000_000`
   and `hourskit::session::OPTION_PM_SETTLEMENT_MS: i32 = 57_600_000`
@@ -97,8 +96,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   encoding the SIP equity regular-trading-hours window
   `[09:30 ET, 16:00 ET)`. Compile-time guards pin the μs/ms
   variants together. Removes duplicated `RTH_START_MS` /
-  `RTH_END_MS` declarations in `thetadatadx-analytics`
-  (`analytics/ohlcvc/bar.rs`).
+  `RTH_END_MS` declarations the consuming analytics SDK carried
+  internally.
 
 ## [0.3.0] - 2026-05-05
 
@@ -258,13 +257,12 @@ class)`:
   2024-08-26). The Sunday-night session start at 20:15 ET is unchanged.
 - **Source citations:** roster cross-referenced against CBOE C1 Rule 5.1,
   OPRA GTH 2024-08-26 PDF, Firstrade broker list, NASDAQ Trader exchange
-  page, and ThetaData operational data. ThetaData superset selected for
-  broadest coverage; Firstrade + NASDAQ subsets retained as
+  page, and a market-data vendor operational roster. The vendor superset
+  was selected for broadest coverage; Firstrade + NASDAQ subsets retained as
   cross-validation references. See [`examples/seed_data.rs`](crates/hourskit/examples/seed_data.rs)
-  for the full citation block + per-source URLs and the ThetaData-only
-  delta list.
+  for the full citation block and the per-source delta list.
 - **Cash-settled-index last-trading-day exception** encoded per CBOE Rule
-  5.1(b)(2)(C) on TWO layers for institutional-grade coverage:
+  5.1(b)(2)(C) on two layers for complete coverage:
   - **Per-root**: NDXP, RUTW, MRUT, SPXW, XSP, OEX, XEO (Firstrade
     quote) plus SPXPM, SPEQF, SPEQX (rule-named p.m.-settled) plus
     `SPX (PM Expiration)` / `XSP (PM Expiration)` (literal-root

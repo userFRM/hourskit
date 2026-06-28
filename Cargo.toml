@@ -17,8 +17,8 @@ rust-version = "1.86"
 
 [workspace.dependencies]
 # ── Core ──
-anyhow = "1.0"
-thiserror = "2.0"
+anyhow = "1"
+thiserror = "2"
 
 # ── Async runtime ──
 tokio = { version = "1", features = ["full"] }
@@ -51,7 +51,7 @@ parquet = { version = "58", default-features = false, features = ["snap", "zstd"
 # Held at the workspace level so any first-party macro work reaches the
 # maintained fork. The transitive `paste` pulled in by `parquet` is gated
 # behind the `parquet-loader` feature in the lib crate.
-pastey = "0.2.2"
+pastey = "0.2"
 
 # ── CLI ──
 clap = { version = "4", features = ["derive", "env"] }
@@ -99,7 +99,7 @@ redundant_pub_crate = "allow"
 # Allowed because the seed-data example is fixed-list initialisation; the
 # pedantic warning fires on every line of a `[&str]` literal.
 must_use_candidate = "allow"
-# Brand names (ETag, ThetaData, XDG, OPRA, jsDelivr, NASDAQ, ...) trigger this
+# Brand names (ETag, XDG, OPRA, jsDelivr, NASDAQ, ...) trigger this
 # even when used in plain prose. The standard idiom is to backtick types and
 # functions, not English-language vendor names.
 doc_markdown = "allow"

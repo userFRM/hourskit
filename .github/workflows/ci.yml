@@ -1,122 +1,18 @@
 name: CI
-
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-  CARGO_INCREMENTAL: 0
-
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
 jobs:
-  fmt:
-    name: rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-  clippy:
-    name: clippy + tests + docs
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Clippy (deny warnings)
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Tests (offline only)
-        run: cargo test --workspace
-
-      - name: Docs (deny rustdoc warnings)
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps
-
-  manifest:
-    name: regenerate seed + validate manifest
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Regenerate seed parquet
-        run: cargo run --example seed_data
-      - name: Snapshot committed manifest
-        run: cp data/manifest.json /tmp/manifest.committed.json
-      - name: Regenerate manifest from fresh parquet
-        run: cargo run --bin hourskit-cli -- manifest
-      - name: Compare manifests
-        run: |
-          if ! diff -u /tmp/manifest.committed.json data/manifest.json; then
-            echo "::error::data/manifest.json drifted from the regenerated parquet."
-            echo "Run 'cargo run --example seed_data && cargo run --bin hourskit-cli -- manifest' locally and commit both files."
-            exit 1
-          fi
-
-  msrv:
-    name: MSRV (1.86)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@1.86
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-msrv-${{ hashFiles('**/Cargo.lock') }}
-      - name: cargo build (MSRV)
-        run: cargo build --workspace
-
-  deny:
-    name: cargo-deny
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
-  audit:
-    name: cargo-audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - name: Run cargo-audit
-        # Advisory exceptions live in `audit.toml` (single source of
-        # truth, kept in sync with `deny.toml`).
-        run: cargo audit
+  ci:
+    uses: userFRM/kit-ci/.github/workflows/ci.yml@28fc202d7ddafe5c5ee6886da01027f8342d3673
+    with:
+      msrv: "1.86"
+      manifest_check: |
+        cargo run --example seed_data
+        cp data/manifest.json /tmp/manifest.committed.json
+        cargo run --bin hourskit-cli -- manifest
+        if ! diff -u /tmp/manifest.committed.json data/manifest.json; then
+          echo "::error::data/manifest.json drifted from the regenerated parquet."
+          echo "Run 'cargo run --example seed_data && cargo run --bin hourskit-cli -- manifest' locally and commit both files."
+          exit 1
+        fi

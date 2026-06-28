@@ -9,7 +9,10 @@ rust-version.workspace = true
 description = "US exchange trading-hours service for Rust — Cboe options, NASDAQ + NYSE Arca + Cboe BZX/EDGX/BYX/EDGA equities, microsecond-native, optional bundled-parquet loader"
 keywords = ["cboe", "nasdaq", "options", "market-hours", "parquet"]
 categories = ["finance", "api-bindings"]
-readme = "../../README.md"
+readme = "../../README.crates.md"
+# Keep the published .crate lean: bundled data is fetched at runtime, and the
+# CI/tooling trees are repo-only. This does not affect the repo working tree.
+exclude = ["/data", "/.github", "/cli"]
 
 [features]
 default = ["parquet-loader"]
